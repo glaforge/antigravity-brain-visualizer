@@ -40,15 +40,17 @@
                         <h2 id="current-session-title">Select a session</h2>
                         <div id="current-session-id" class="session-id-subtitle"></div>
                     </div>
-                    <button id="summarize-btn" class="btn primary disabled" disabled>
-                        <span class="sparkle-icon">✨</span> Recompute Analysis
-                    </button>
                 </div>
                 
                 <div id="ai-summary-container" class="ai-summary hidden">
-                    <div class="ai-summary-header" id="ai-summary-header">
+                    <div class="ai-summary-header" id="ai-summary-header" style="display:flex; justify-content:space-between; align-items:center;">
                         <h3>Conversation Analysis</h3>
-                        <span class="chevron" style="transform: rotate(90deg);">›</span>
+                        <div style="display:flex; align-items:center; gap:16px;">
+                            <button id="summarize-btn" class="btn primary disabled" disabled style="padding: 6px 12px; font-size: 0.85rem; margin: 0;">
+                                <span class="sparkle-icon">✨</span> Recompute Analysis
+                            </button>
+                            <span class="chevron" style="transform: rotate(90deg);">›</span>
+                        </div>
                     </div>
                     <div id="ai-summary-content">
                         <div id="ai-summary-text">Loading...</div>

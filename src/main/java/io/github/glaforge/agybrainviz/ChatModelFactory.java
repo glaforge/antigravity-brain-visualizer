@@ -37,7 +37,7 @@ public class ChatModelFactory {
             .modelName("gemini-3.5-flash")
             .temperature(0.0)
             .maxRetries(0)
-            .timeout(Duration.ofMinutes(5))
+            .timeout(Duration.ofMinutes(2))
             .responseFormat(ResponseFormat.JSON)
             .build();
     }
