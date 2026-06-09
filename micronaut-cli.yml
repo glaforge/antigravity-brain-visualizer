@@ -1,0 +1,6 @@
+applicationType: default
+defaultPackage: io.github.glaforge.agybrainviz
+testFramework: junit
+sourceLanguage: java
+buildTool: gradle
+features: [app-name, gradle, http-client-test, java, java-application, junit, logback, micronaut-aot, micronaut-build, micronaut-configuration-validation-gradle-plugin, micronaut-http-validation, netty-server, readme, serialization-jackson, shade, static-resources, yaml, yaml-build]

@@ -1,0 +1,101 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Antigravity Brain Visualizer</title>
+    <link rel="stylesheet" href="style.css">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.9.0/styles/tokyo-night-dark.min.css">
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Roboto:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
+</head>
+<body>
+    <div class="app-container">
+        <!-- Sidebar for Conversations -->
+        <aside class="sidebar">
+            <div class="sidebar-header">
+                <div class="logo">
+                    <img src="logo.png" alt="Antigravity Brain Visualizer">
+                </div>
+                <div style="margin-top: 16px; padding: 0 24px;">
+                    <select id="flavor-select" style="width: 100%; padding: 8px; border-radius: 6px; background: rgba(30, 41, 59, 0.5); color: var(--text-primary); border: 1px solid var(--border-color); outline: none; font-size: 0.9rem;">
+                        <option value="antigravity-cli">Antigravity CLI</option>
+                        <option value="antigravity-ide">Antigravity IDE</option>
+                        <option value="antigravity">Antigravity Agent</option>
+                    </select>
+                </div>
+            </div>
+            <div class="conversations-list" id="conversations-list">
+                <!-- List dynamically populated -->
+                <div class="loading-state">Loading sessions...</div>
+            </div>
+        </aside>
+
+        <!-- Main Content Area -->
+        <main class="main-content">
+            <header class="main-header">
+                <div class="header-top" style="display:flex; justify-content:space-between; width:100%; align-items:flex-start;">
+                    <div class="header-info">
+                        <h2 id="current-session-title">Select a session</h2>
+                        <div id="current-session-id" class="session-id-subtitle"></div>
+                    </div>
+                    <button id="summarize-btn" class="btn primary disabled" disabled>
+                        <span class="sparkle-icon">✨</span> Recompute Analysis
+                    </button>
+                </div>
+                
+                <div id="ai-summary-container" class="ai-summary hidden">
+                    <div class="ai-summary-header" id="ai-summary-header">
+                        <h3>Conversation Analysis</h3>
+                        <span class="chevron" style="transform: rotate(90deg);">›</span>
+                    </div>
+                    <div id="ai-summary-content">
+                        <div id="ai-summary-text">Loading...</div>
+                    </div>
+                </div>
+                
+                <div id="session-stats-container" class="session-stats hidden">
+                    <!-- Stats dynamically populated -->
+                </div>
+            </header>
+
+            <div style="flex: 1; position: relative; display: flex; min-height: 0;">
+                <div class="transcript-container" id="transcript-container" style="flex: 1;">
+                    <div class="empty-state">
+                        <div class="empty-icon">🧠</div>
+                        <p>Select a conversation from the sidebar to visualize the agent's memory and workflow.</p>
+                    </div>
+                    <!-- Timeline items dynamically populated -->
+                </div>
+                <!-- Timeline Scrubber -->
+                <div id="timeline-track">
+                    <div id="timeline-thumb">
+                        <span id="timeline-label">12:00</span>
+                    </div>
+                </div>
+            </div>
+        </main>
+    </div>
+    
+
+
+    <script src="https://cdn.jsdelivr.net/npm/marked/marked.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.9.0/highlight.min.js"></script>
+
+    <!-- File Preview Modal -->
+    <div id="file-modal" class="modal hidden">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h3 id="file-modal-title">File View</h3>
+                <button id="close-modal-btn" class="icon-btn">×</button>
+            </div>
+            <div class="modal-body">
+                <pre><code id="file-modal-content"></code></pre>
+            </div>
+        </div>
+    </div>
+
+    <script type="module" src="app.js"></script>
+</body>
+</html>

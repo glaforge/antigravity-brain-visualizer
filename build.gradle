@@ -1,0 +1,106 @@
+plugins {
+    id("io.micronaut.application") version "5.0.0"
+    id("com.gradleup.shadow") version "9.4.1"
+    id("io.micronaut.aot") version "5.0.0"
+}
+
+version = "0.1"
+group = "com.example"
+
+
+
+repositories {
+    mavenCentral()
+}
+
+dependencies {
+    annotationProcessor("io.micronaut:micronaut-http-validation")
+    annotationProcessor("io.micronaut.serde:micronaut-serde-processor")
+    implementation("io.micronaut.serde:micronaut-serde-jackson")
+    compileOnly("io.micronaut:micronaut-http-client")
+    runtimeOnly("ch.qos.logback:logback-classic")
+    runtimeOnly("org.yaml:snakeyaml")
+    testImplementation("io.micronaut:micronaut-http-client")
+    testRuntimeOnly("org.junit.platform:junit-platform-launcher")
+    
+    // LangChain4j BOM
+    implementation(platform("dev.langchain4j:langchain4j-bom:1.16.1"))
+
+    // LangChain4j Google GenAI
+    implementation("dev.langchain4j:langchain4j-google-genai")
+    implementation("dev.langchain4j:langchain4j")
+    
+    // Micronaut Langchain4j
+    annotationProcessor("io.micronaut.langchain4j:micronaut-langchain4j-processor:2.0.1")
+    implementation("io.micronaut.langchain4j:micronaut-langchain4j-core:2.0.1")
+    
+    // Dependencies end here
+}
+
+
+
+application {
+    mainClass = "io.github.glaforge.agybrainviz.Application"
+}
+
+java {
+    sourceCompatibility = JavaVersion.toVersion("25")
+    targetCompatibility = JavaVersion.toVersion("25")
+}
+
+
+
+
+graalvmNative.toolchainDetection = false
+graalvmNative {
+    binaries {
+        all {
+            buildArgs.add("-H:+SharedArenaSupport")
+        }
+    }
+}
+
+
+
+
+micronaut {
+    runtime("netty")
+    testRuntime("junit5")
+    processing {
+        incremental(true)
+        annotations("com.example.*")
+    }
+    aot {
+        // Please review carefully the optimizations enabled below
+        // Check https://micronaut-projects.github.io/micronaut-aot/latest/guide/ for more details
+        optimizeServiceLoading = false
+        convertYamlToJava = false
+        precomputeOperations = true
+        cacheEnvironment = true
+        optimizeClassLoading = true
+        deduceEnvironment = true
+        optimizeNetty = true
+        replaceLogbackXml = true
+    }
+
+}
+
+tasks.named("dockerfile") {
+
+    baseImage = "eclipse-temurin:25-jre"
+}
+
+
+
+
+
+
+
+// https://docs.gradle.org/current/userguide/upgrading_major_version_9.html#test_task_fails_when_no_tests_are_discovered
+tasks.withType(AbstractTestTask).configureEach {
+    failOnNoDiscoveredTests = false
+}
+
+
+
+

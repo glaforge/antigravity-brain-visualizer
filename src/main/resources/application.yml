@@ -1,0 +1,8 @@
+micronaut:
+  application:
+    name: visualizer
+  router:
+    static-resources:
+      default:
+        paths: classpath:public
+        mapping: "/**"
