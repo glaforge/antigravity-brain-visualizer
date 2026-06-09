@@ -447,8 +447,9 @@ export function renderTranscript(steps, container) {
         border: "1px solid rgba(148, 163, 184, 0.15)",
         borderRadius: "16px",
         padding: "16px",
-        boxShadow: "0 4px 6px -1px rgba(0, 0, 0, 0.1), 0 2px 4px -1px rgba(0, 0, 0, 0.06)",
-        transition: "all 0.3s ease"
+        boxShadow:
+          "0 4px 6px -1px rgba(0, 0, 0, 0.1), 0 2px 4px -1px rgba(0, 0, 0, 0.06)",
+        transition: "all 0.3s ease",
       });
       container.appendChild(currentSequenceContainer);
 
@@ -464,7 +465,7 @@ export function renderTranscript(steps, container) {
         fontWeight: "600",
         textTransform: "uppercase",
         letterSpacing: "0.05em",
-        userSelect: "none"
+        userSelect: "none",
       });
       sequenceHeader.innerHTML = `
         <span class="seq-chevron" style="display:inline-block; transition: transform 0.2s; transform: rotate(90deg); font-size: 1.2rem; line-height: 1;">›</span>
@@ -481,7 +482,7 @@ export function renderTranscript(steps, container) {
       currentStepsWrapper = document.createElement("div");
       currentStepsWrapper.className = "sequence-steps";
       Object.assign(currentStepsWrapper.style, {
-        marginTop: "0"
+        marginTop: "0",
       });
       currentSequenceContent.appendChild(currentStepsWrapper);
 
@@ -489,10 +490,10 @@ export function renderTranscript(steps, container) {
       sequenceHeader.addEventListener("click", () => {
         const isCollapsed = localContent.style.display === "none";
         localContent.style.display = isCollapsed ? "block" : "none";
-        sequenceHeader.querySelector(".seq-chevron").style.transform = isCollapsed ? "rotate(90deg)" : "rotate(0deg)";
+        sequenceHeader.querySelector(".seq-chevron").style.transform =
+          isCollapsed ? "rotate(90deg)" : "rotate(0deg)";
         sequenceHeader.style.marginBottom = isCollapsed ? "12px" : "0";
       });
-
     } else {
       currentStepsWrapper.appendChild(card);
     }

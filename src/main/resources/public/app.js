@@ -33,18 +33,24 @@ document.addEventListener("DOMContentLoaded", () => {
     sidebarToggleBtn.addEventListener("click", () => {
       const sidebar = document.querySelector(".sidebar");
       sidebar.classList.toggle("collapsed");
-      
-      const expandedIcon = sidebarToggleBtn.querySelector(".sidebar-icon-expanded");
-      const collapsedIcon = sidebarToggleBtn.querySelector(".sidebar-icon-collapsed");
-      
+
+      const expandedIcon = sidebarToggleBtn.querySelector(
+        ".sidebar-icon-expanded"
+      );
+      const collapsedIcon = sidebarToggleBtn.querySelector(
+        ".sidebar-icon-collapsed"
+      );
+
       if (sidebar.classList.contains("collapsed")) {
         expandedIcon.classList.add("hidden");
         collapsedIcon.classList.remove("hidden");
-        sidebarToggleBtn.querySelector(".sidebar-chevron").style.transform = "rotate(180deg)";
+        sidebarToggleBtn.querySelector(".sidebar-chevron").style.transform =
+          "rotate(180deg)";
       } else {
         expandedIcon.classList.remove("hidden");
         collapsedIcon.classList.add("hidden");
-        sidebarToggleBtn.querySelector(".sidebar-chevron").style.transform = "rotate(0deg)";
+        sidebarToggleBtn.querySelector(".sidebar-chevron").style.transform =
+          "rotate(0deg)";
       }
     });
   }
@@ -68,14 +74,18 @@ document.addEventListener("DOMContentLoaded", () => {
       let newWidth = e.clientX;
       if (newWidth < 200) newWidth = 200;
       if (newWidth > 800) newWidth = 800;
-      document.documentElement.style.setProperty("--sidebar-width", `${newWidth}px`);
+      document.documentElement.style.setProperty(
+        "--sidebar-width",
+        `${newWidth}px`
+      );
     });
 
     document.addEventListener("mouseup", () => {
       if (isResizing) {
         isResizing = false;
         document.body.style.cursor = "default";
-        sidebar.style.transition = "margin-left 0.3s cubic-bezier(0.4, 0, 0.2, 1)";
+        sidebar.style.transition =
+          "margin-left 0.3s cubic-bezier(0.4, 0, 0.2, 1)";
         resizer.classList.remove("resizing");
         document.body.style.userSelect = "";
       }

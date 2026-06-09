@@ -63,18 +63,19 @@ export function renderStats(steps) {
   }
 
   steps.forEach((step) => {
-    if (
+    if (step.tool_calls && step.tool_calls.length > 0) {
+      toolsCalled += step.tool_calls.length;
+      step.tool_calls.forEach((tool) => {
+        let toolName = tool.name || tool.function?.name || "unknown_tool";
+        toolFrequencies[toolName] = (toolFrequencies[toolName] || 0) + 1;
+      });
+    } else if (
       step.type &&
       (step.type.includes("TOOL") ||
         step.type.includes("VIEW_FILE") ||
         step.type.includes("COMMAND"))
     ) {
       toolsCalled++;
-    }
-    if (step.tool_calls && step.tool_calls.length > 0) {
-      step.tool_calls.forEach((tool) => {
-        toolFrequencies[tool.name] = (toolFrequencies[tool.name] || 0) + 1;
-      });
     }
     if (step.source === "USER_EXPLICIT" || step.type === "USER_INPUT") {
       userQueries++;
