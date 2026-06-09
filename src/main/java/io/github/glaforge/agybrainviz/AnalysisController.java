@@ -174,207 +174,222 @@ public class AnalysisController {
             ObjectMapper mapper = new ObjectMapper();
             AnalysisResponse responseObj = null;
 
-        try {
-            List<String> allLines = Files.readAllLines(transcriptPath);
-            List<List<String>> sequences = new ArrayList<>();
-            List<String> currentSequence = new ArrayList<>();
+            try {
+                List<String> allLines = Files.readAllLines(transcriptPath);
+                List<List<String>> sequences = new ArrayList<>();
+                List<String> currentSequence = new ArrayList<>();
 
-            for (String line : allLines) {
-                if (line.trim().isEmpty()) continue;
-                try {
-                    JsonNode node = mapper.readTree(line);
-                    String type = node.path("type").asText("");
-                    if (
-                        "USER_INPUT".equals(type) ||
-                        "USER_EXPLICIT".equals(node.path("source").asText(""))
-                    ) {
-                        if (!currentSequence.isEmpty()) {
-                            sequences.add(deduplicateSequence(currentSequence));
-                            currentSequence = new ArrayList<>();
-                        }
-                        String content = node.path("content").asText("");
-                        currentSequence.add(
-                            "USER REQUEST: " +
-                            content.substring(0, Math.min(2000, content.length()))
-                        );
-                    } else if (
-                        "PLANNER_RESPONSE".equals(type) ||
-                        "MODEL".equals(node.path("source").asText(""))
-                    ) {
-                        JsonNode tools = node.path("tool_calls");
-                        if (!tools.isMissingNode() && tools.isArray()) {
-                            for (JsonNode tool : tools) {
-                                String name = tool.path("name").asText("unknown");
-                                String action = tool
-                                    .path("arguments")
-                                    .path("toolAction")
-                                    .asText("");
-                                String tgt = tool.path("arguments").path("TargetFile").asText("");
-                                if (tgt.isEmpty()) tgt =
-                                    tool.path("arguments").path("CommandLine").asText("");
-                                currentSequence.add(
-                                    "AGENT ACTION: [" + name + "] " + action + " -> " + tgt
-                                );
+                for (String line : allLines) {
+                    if (line.trim().isEmpty()) continue;
+                    try {
+                        JsonNode node = mapper.readTree(line);
+                        String type = node.path("type").asText("");
+                        if (
+                            "USER_INPUT".equals(type) ||
+                            "USER_EXPLICIT".equals(node.path("source").asText(""))
+                        ) {
+                            if (!currentSequence.isEmpty()) {
+                                sequences.add(deduplicateSequence(currentSequence));
+                                currentSequence = new ArrayList<>();
                             }
-                        }
-                    } else if (
-                        node.has("error") ||
-                        (
-                            node.has("content") &&
-                            node.path("content").asText("").contains("Exception")
-                        )
-                    ) {
-                        String err = node.path("content").asText("");
-                        currentSequence.add(
-                            "SYSTEM EVENT/ERROR: " + err.substring(0, Math.min(500, err.length()))
-                        );
-                    }
-                } catch (Exception e) {
-                    // skip malformed
-                }
-            }
-            if (!currentSequence.isEmpty()) {
-                sequences.add(deduplicateSequence(currentSequence));
-            }
-
-            TokenCountEstimator estimator = GoogleGenAiTokenCountEstimator
-                .builder()
-                .apiKey(apiKey)
-                .modelName("gemini-3.5-flash")
-                .build();
-
-            progressMap.put(id, new ProgressState(5, "Estimating Tokens & Chunking...")); // Phase 1: Estimating
-
-            List<String> combinedLines = new ArrayList<>();
-            for (List<String> seq : sequences) {
-                combinedLines.addAll(seq);
-            }
-            List<List<String>> optimalChunks = new ArrayList<>();
-            splitIntoSafeChunks(combinedLines, estimator, MAX_TOKENS_PER_CHUNK, optimalChunks);
-
-            System.out.println("Total optimal chunks to process in parallel: " + optimalChunks.size());
-
-            progressMap.put(id, new ProgressState(0, "Starting chunk processing...")); // start at 0%
-
-            List<Future<AnalysisResponse>> futures = new ArrayList<>();
-            AtomicInteger completed = new AtomicInteger(0);
-
-            // Limit to 20 concurrent LLM requests, as we have drastically reduced chunk count
-            Semaphore rateLimitSemaphore = new Semaphore(20);
-
-            for (List<String> chunkLines : optimalChunks) {
-                futures.add(
-                    executor.submit(() -> {
-                        try {
-                            rateLimitSemaphore.acquire();
-                        } catch (InterruptedException e) {
-                            Thread.currentThread().interrupt();
-                            return null;
-                        }
-
-                        try {
-                            String chunk = String.join("\n", chunkLines);
-                            AnalysisResponse seqResponse = null;
-                            try {
-                                seqResponse = analyzerService.analyze(chunk);
-                            } catch (Exception e) {
-                                // Ignore unparseable chunk
-                            }
-
-                            int comp = completed.incrementAndGet();
-                            // Scale parallel processing to 90% of the total progress
-                            int pct = (int) Math.round((comp * 90.0) / optimalChunks.size());
-                            String phaseMsg = "Processing chunk " + comp + " of " + optimalChunks.size() + "...";
-                            
-                            // Prevent progress moving backwards if futures finish out of order
-                            progressMap.compute(id, (k, v) -> {
-                                if (v == null || pct > v.progress()) {
-                                    return new ProgressState(pct, phaseMsg);
-                                }
-                                return v;
-                            });
-
-                            return seqResponse;
-                        } finally {
-                            rateLimitSemaphore.release();
-                        }
-                    })
-                );
-            }
-
-            List<AnalysisResponse> seqResponses = new ArrayList<>();
-            for (Future<AnalysisResponse> f : futures) {
-                AnalysisResponse r = f.get();
-                if (r != null) seqResponses.add(r);
-            }
-
-            if (seqResponses.isEmpty()) {
-                return "{\"summary\": \"No transcript lines found.\"}";
-            } else if (seqResponses.size() == 1) {
-                responseObj = seqResponses.get(0);
-            } else {
-                progressMap.put(id, new ProgressState(90, "Consolidating final analysis..."));
-
-                // Keep the progress bar moving smoothly during the long final LLM consolidation
-                AtomicBoolean consolidationDone = new AtomicBoolean(false);
-                Future<?> fakeProgress = executor.submit(() -> {
-                    int p = 90;
-                    while (!consolidationDone.get() && p < 99) {
-                        try {
-                            Thread.sleep(2000);
-                        } catch (InterruptedException e) {
-                            break;
-                        }
-                        if (!consolidationDone.get()) {
-                            int nextP = p + 1;
-                            progressMap.put(
-                                id,
-                                new ProgressState(nextP, "Consolidating final analysis...")
+                            String content = node.path("content").asText("");
+                            currentSequence.add(
+                                "USER REQUEST: " +
+                                content.substring(0, Math.min(2000, content.length()))
                             );
-                            p = nextP;
+                        } else if (
+                            "PLANNER_RESPONSE".equals(type) ||
+                            "MODEL".equals(node.path("source").asText(""))
+                        ) {
+                            JsonNode tools = node.path("tool_calls");
+                            if (!tools.isMissingNode() && tools.isArray()) {
+                                for (JsonNode tool : tools) {
+                                    String name = tool.path("name").asText("unknown");
+                                    String action = tool
+                                        .path("arguments")
+                                        .path("toolAction")
+                                        .asText("");
+                                    String tgt = tool
+                                        .path("arguments")
+                                        .path("TargetFile")
+                                        .asText("");
+                                    if (tgt.isEmpty()) tgt =
+                                        tool.path("arguments").path("CommandLine").asText("");
+                                    currentSequence.add(
+                                        "AGENT ACTION: [" + name + "] " + action + " -> " + tgt
+                                    );
+                                }
+                            }
+                        } else if (
+                            node.has("error") ||
+                            (
+                                node.has("content") &&
+                                node.path("content").asText("").contains("Exception")
+                            )
+                        ) {
+                            String err = node.path("content").asText("");
+                            currentSequence.add(
+                                "SYSTEM EVENT/ERROR: " +
+                                err.substring(0, Math.min(500, err.length()))
+                            );
                         }
+                    } catch (Exception e) {
+                        // skip malformed
                     }
-                });
+                }
+                if (!currentSequence.isEmpty()) {
+                    sequences.add(deduplicateSequence(currentSequence));
+                }
+
+                TokenCountEstimator estimator = GoogleGenAiTokenCountEstimator
+                    .builder()
+                    .apiKey(apiKey)
+                    .modelName("gemini-3.5-flash")
+                    .build();
+
+                progressMap.put(id, new ProgressState(5, "Estimating Tokens & Chunking...")); // Phase 1: Estimating
+
+                List<String> combinedLines = new ArrayList<>();
+                for (List<String> seq : sequences) {
+                    combinedLines.addAll(seq);
+                }
+                List<List<String>> optimalChunks = new ArrayList<>();
+                splitIntoSafeChunks(combinedLines, estimator, MAX_TOKENS_PER_CHUNK, optimalChunks);
+
+                System.out.println(
+                    "Total optimal chunks to process in parallel: " + optimalChunks.size()
+                );
+
+                progressMap.put(id, new ProgressState(0, "Starting chunk processing...")); // start at 0%
+
+                List<Future<AnalysisResponse>> futures = new ArrayList<>();
+                AtomicInteger completed = new AtomicInteger(0);
+
+                // Limit to 20 concurrent LLM requests, as we have drastically reduced chunk count
+                Semaphore rateLimitSemaphore = new Semaphore(20);
+
+                for (List<String> chunkLines : optimalChunks) {
+                    futures.add(
+                        executor.submit(() -> {
+                            try {
+                                rateLimitSemaphore.acquire();
+                            } catch (InterruptedException e) {
+                                Thread.currentThread().interrupt();
+                                return null;
+                            }
+
+                            try {
+                                String chunk = String.join("\n", chunkLines);
+                                AnalysisResponse seqResponse = null;
+                                try {
+                                    seqResponse = analyzerService.analyze(chunk);
+                                } catch (Exception e) {
+                                    // Ignore unparseable chunk
+                                }
+
+                                int comp = completed.incrementAndGet();
+                                // Scale parallel processing to 90% of the total progress
+                                int pct = (int) Math.round((comp * 90.0) / optimalChunks.size());
+                                String phaseMsg =
+                                    "Processing chunk " +
+                                    comp +
+                                    " of " +
+                                    optimalChunks.size() +
+                                    "...";
+
+                                // Prevent progress moving backwards if futures finish out of order
+                                progressMap.compute(
+                                    id,
+                                    (k, v) -> {
+                                        if (v == null || pct > v.progress()) {
+                                            return new ProgressState(pct, phaseMsg);
+                                        }
+                                        return v;
+                                    }
+                                );
+
+                                return seqResponse;
+                            } finally {
+                                rateLimitSemaphore.release();
+                            }
+                        })
+                    );
+                }
+
+                List<AnalysisResponse> seqResponses = new ArrayList<>();
+                for (Future<AnalysisResponse> f : futures) {
+                    AnalysisResponse r = f.get();
+                    if (r != null) seqResponses.add(r);
+                }
+
+                if (seqResponses.isEmpty()) {
+                    return "{\"summary\": \"No transcript lines found.\"}";
+                } else if (seqResponses.size() == 1) {
+                    responseObj = seqResponses.get(0);
+                } else {
+                    progressMap.put(id, new ProgressState(90, "Consolidating final analysis..."));
+
+                    // Keep the progress bar moving smoothly during the long final LLM consolidation
+                    AtomicBoolean consolidationDone = new AtomicBoolean(false);
+                    Future<?> fakeProgress = executor.submit(() -> {
+                        int p = 90;
+                        while (!consolidationDone.get() && p < 99) {
+                            try {
+                                Thread.sleep(2000);
+                            } catch (InterruptedException e) {
+                                break;
+                            }
+                            if (!consolidationDone.get()) {
+                                int nextP = p + 1;
+                                progressMap.put(
+                                    id,
+                                    new ProgressState(nextP, "Consolidating final analysis...")
+                                );
+                                p = nextP;
+                            }
+                        }
+                    });
+
+                    try {
+                        responseObj =
+                            recursivelyConsolidate(seqResponses, estimator, mapper, 500_000);
+                    } finally {
+                        consolidationDone.set(true);
+                        fakeProgress.cancel(true);
+                    }
+                }
+
+                progressMap.put(id, new ProgressState(100, "Done"));
+
+                String jsonResponse = mapper.writeValueAsString(responseObj);
+
+                // Try to extract shortTitle for shortTitlePath caching
+                try {
+                    String title = responseObj.shortTitle();
+                    if (title != null && !title.isEmpty()) {
+                        Files.writeString(shortTitlePath, title.trim());
+                    }
+                } catch (Exception e) {}
 
                 try {
-                    responseObj = recursivelyConsolidate(seqResponses, estimator, mapper, 500_000);
-                } finally {
-                    consolidationDone.set(true);
-                    fakeProgress.cancel(true);
+                    Files.writeString(summaryJsonPath, jsonResponse);
+                    return jsonResponse;
+                } catch (Exception e) {
+                    throw new Exception("Invalid JSON response");
                 }
-            }
-
-            progressMap.put(id, new ProgressState(100, "Done"));
-
-            String jsonResponse = mapper.writeValueAsString(responseObj);
-
-            // Try to extract shortTitle for shortTitlePath caching
-            try {
-                String title = responseObj.shortTitle();
-                if (title != null && !title.isEmpty()) {
-                    Files.writeString(shortTitlePath, title.trim());
-                }
-            } catch (Exception e) {}
-
-            try {
-                Files.writeString(summaryJsonPath, jsonResponse);
-                return jsonResponse;
             } catch (Exception e) {
-                throw new Exception("Invalid JSON response");
+                System.err.println("Exception caught during analysis:");
+                e.printStackTrace();
+                try {
+                    return mapper.writeValueAsString(
+                        Map.of("summary", "Error generating summary: " + e.getMessage())
+                    );
+                } catch (Exception ex) {
+                    return "{\"summary\": \"Error generating summary: Unknown error\"}";
+                }
+            } finally {
+                progressMap.remove(id);
             }
-        } catch (Exception e) {
-            System.err.println("Exception caught during analysis:");
-            e.printStackTrace();
-            try {
-                return mapper.writeValueAsString(
-                    Map.of("summary", "Error generating summary: " + e.getMessage())
-                );
-            } catch (Exception ex) {
-                return "{\"summary\": \"Error generating summary: Unknown error\"}";
-            }
-        } finally {
-            progressMap.remove(id);
-        }
         } finally {
             runningTasks.remove(id);
         }

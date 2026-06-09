@@ -28,6 +28,60 @@ document.addEventListener("DOMContentLoaded", () => {
     flavorSelect.value = savedFlavor;
   }
 
+  const sidebarToggleBtn = document.getElementById("sidebar-toggle-btn");
+  if (sidebarToggleBtn) {
+    sidebarToggleBtn.addEventListener("click", () => {
+      const sidebar = document.querySelector(".sidebar");
+      sidebar.classList.toggle("collapsed");
+      
+      const expandedIcon = sidebarToggleBtn.querySelector(".sidebar-icon-expanded");
+      const collapsedIcon = sidebarToggleBtn.querySelector(".sidebar-icon-collapsed");
+      
+      if (sidebar.classList.contains("collapsed")) {
+        expandedIcon.classList.add("hidden");
+        collapsedIcon.classList.remove("hidden");
+        sidebarToggleBtn.querySelector(".sidebar-chevron").style.transform = "rotate(180deg)";
+      } else {
+        expandedIcon.classList.remove("hidden");
+        collapsedIcon.classList.add("hidden");
+        sidebarToggleBtn.querySelector(".sidebar-chevron").style.transform = "rotate(0deg)";
+      }
+    });
+  }
+
+  const resizer = document.getElementById("sidebar-resizer");
+  const sidebar = document.querySelector(".sidebar");
+  if (resizer && sidebar) {
+    let isResizing = false;
+
+    resizer.addEventListener("mousedown", (e) => {
+      isResizing = true;
+      document.body.style.cursor = "col-resize";
+      sidebar.style.transition = "none";
+      resizer.classList.add("resizing");
+      // Prevent text selection while dragging
+      document.body.style.userSelect = "none";
+    });
+
+    document.addEventListener("mousemove", (e) => {
+      if (!isResizing) return;
+      let newWidth = e.clientX;
+      if (newWidth < 200) newWidth = 200;
+      if (newWidth > 800) newWidth = 800;
+      document.documentElement.style.setProperty("--sidebar-width", `${newWidth}px`);
+    });
+
+    document.addEventListener("mouseup", () => {
+      if (isResizing) {
+        isResizing = false;
+        document.body.style.cursor = "default";
+        sidebar.style.transition = "margin-left 0.3s cubic-bezier(0.4, 0, 0.2, 1)";
+        resizer.classList.remove("resizing");
+        document.body.style.userSelect = "";
+      }
+    });
+  }
+
   loadConversations();
 
   flavorSelect.addEventListener("change", () => {
@@ -60,7 +114,8 @@ document.addEventListener("DOMContentLoaded", () => {
 
   document
     .getElementById("summarize-btn")
-    .addEventListener("click", async () => {
+    .addEventListener("click", async (e) => {
+      e.stopPropagation();
       const sessionId =
         document.getElementById("current-session-id").dataset.id;
       if (!sessionId) return;

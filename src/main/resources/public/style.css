@@ -10,6 +10,7 @@
     --error: #ef4444;
     --font-main: 'Roboto', sans-serif;
     --font-mono: 'JetBrains Mono', monospace;
+    --sidebar-width: 320px;
 }
 
 * {
@@ -38,12 +39,34 @@ body {
 
 /* Sidebar */
 .sidebar {
-    width: 320px;
+    width: var(--sidebar-width);
     background: var(--bg-panel);
     backdrop-filter: blur(12px);
     border-right: 1px solid var(--border-color);
     display: flex;
     flex-direction: column;
+    transition: margin-left 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+    position: relative;
+    flex-shrink: 0;
+}
+
+.sidebar.collapsed {
+    margin-left: calc(-1 * var(--sidebar-width));
+}
+
+.sidebar-resizer {
+    position: absolute;
+    top: 0;
+    right: -3px;
+    width: 6px;
+    height: 100%;
+    cursor: col-resize;
+    z-index: 100;
+    transition: background 0.2s;
+}
+
+.sidebar-resizer:hover, .sidebar-resizer.resizing {
+    background: var(--accent-blue);
 }
 
 .sidebar-header {
@@ -246,10 +269,14 @@ body {
     overflow: hidden;
     position: relative;
     box-shadow: 0 4px 20px rgba(0, 0, 0, 0.2);
-    animation: slideIn 0.4s ease forwards;
+    animation: slideIn 0.2s ease forwards;
     opacity: 0;
     transform: translateY(10px);
-    margin-bottom: 24px;
+    margin-bottom: 12px;
+}
+
+.step-card:last-child {
+    margin-bottom: 0;
 }
 
 .step-card.user-step {
@@ -906,6 +933,12 @@ body {
 }
 
 @media (max-width: 1200px) {
+    .stats-grid {
+        grid-template-columns: repeat(3, 1fr);
+    }
+}
+
+@media (max-width: 800px) {
     .stats-grid {
         grid-template-columns: repeat(2, 1fr);
     }

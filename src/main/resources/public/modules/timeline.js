@@ -30,7 +30,7 @@ export function renderTranscript(steps, container) {
     return;
   }
 
-  steps.forEach((step, index) => {
+  const cards = steps.map((step, index) => {
     const isUserStep =
       step.source === "USER_EXPLICIT" || step.type === "USER_INPUT";
     const isErrorStep =
@@ -53,7 +53,7 @@ export function renderTranscript(steps, container) {
 
     card.className = cardClass;
     if (step.created_at) card.dataset.time = formatTime(step.created_at, false);
-    card.style.animationDelay = `${Math.min(index * 0.05, 1)}s`;
+    card.style.animationDelay = `${Math.min(index * 0.015, 0.3)}s`;
 
     let badgeClass = "system";
     if (step.source === "USER_EXPLICIT") {
@@ -120,8 +120,7 @@ export function renderTranscript(steps, container) {
 
     if (!hasContent) {
       header.style.cursor = "default";
-      container.appendChild(card);
-      return;
+      return card;
     }
 
     const body = document.createElement("div");
@@ -428,7 +427,76 @@ export function renderTranscript(steps, container) {
 
     body.innerHTML = html;
     card.appendChild(body);
-    container.appendChild(card);
+    return card;
   });
+
+  let currentSequenceContainer = null;
+  let currentStepsWrapper = null;
+  let currentSequenceContent = null;
+  let sequenceCounter = 1;
+
+  cards.forEach((card, index) => {
+    const isUserStep = card.dataset.isUser === "true";
+
+    if (isUserStep || !currentSequenceContainer) {
+      currentSequenceContainer = document.createElement("div");
+      currentSequenceContainer.className = "sequence-wrapper";
+      Object.assign(currentSequenceContainer.style, {
+        marginBottom: "16px",
+        background: "rgba(30, 41, 59, 0.3)",
+        border: "1px solid rgba(148, 163, 184, 0.15)",
+        borderRadius: "16px",
+        padding: "16px",
+        boxShadow: "0 4px 6px -1px rgba(0, 0, 0, 0.1), 0 2px 4px -1px rgba(0, 0, 0, 0.06)",
+        transition: "all 0.3s ease"
+      });
+      container.appendChild(currentSequenceContainer);
+
+      const sequenceHeader = document.createElement("div");
+      Object.assign(sequenceHeader.style, {
+        display: "flex",
+        alignItems: "center",
+        gap: "8px",
+        cursor: "pointer",
+        marginBottom: "12px",
+        color: "var(--text-secondary)",
+        fontSize: "0.75rem",
+        fontWeight: "600",
+        textTransform: "uppercase",
+        letterSpacing: "0.05em",
+        userSelect: "none"
+      });
+      sequenceHeader.innerHTML = `
+        <span class="seq-chevron" style="display:inline-block; transition: transform 0.2s; transform: rotate(90deg); font-size: 1.2rem; line-height: 1;">›</span>
+        <span>Sequence ${sequenceCounter++}</span>
+      `;
+      currentSequenceContainer.appendChild(sequenceHeader);
+
+      currentSequenceContent = document.createElement("div");
+      currentSequenceContent.className = "sequence-content";
+      currentSequenceContainer.appendChild(currentSequenceContent);
+
+      currentSequenceContent.appendChild(card);
+
+      currentStepsWrapper = document.createElement("div");
+      currentStepsWrapper.className = "sequence-steps";
+      Object.assign(currentStepsWrapper.style, {
+        marginTop: "0"
+      });
+      currentSequenceContent.appendChild(currentStepsWrapper);
+
+      const localContent = currentSequenceContent;
+      sequenceHeader.addEventListener("click", () => {
+        const isCollapsed = localContent.style.display === "none";
+        localContent.style.display = isCollapsed ? "block" : "none";
+        sequenceHeader.querySelector(".seq-chevron").style.transform = isCollapsed ? "rotate(90deg)" : "rotate(0deg)";
+        sequenceHeader.style.marginBottom = isCollapsed ? "12px" : "0";
+      });
+
+    } else {
+      currentStepsWrapper.appendChild(card);
+    }
+  });
+
   window.dispatchEvent(new Event("transcriptLoaded"));
 }

@@ -30,15 +30,29 @@
                 <!-- List dynamically populated -->
                 <div class="loading-state">Loading sessions...</div>
             </div>
+            <div class="sidebar-resizer" id="sidebar-resizer"></div>
         </aside>
 
         <!-- Main Content Area -->
         <main class="main-content">
             <header class="main-header">
                 <div class="header-top" style="display:flex; justify-content:space-between; width:100%; align-items:flex-start;">
-                    <div class="header-info">
-                        <h2 id="current-session-title">Select a session</h2>
-                        <div id="current-session-id" class="session-id-subtitle"></div>
+                    <div style="display: flex; align-items: center; gap: 16px;">
+                        <button id="sidebar-toggle-btn" style="background:transparent; border:none; color:var(--text-primary); cursor:pointer; padding:4px; display:flex; align-items:center;" title="Toggle Sidebar">
+                            <svg class="sidebar-chevron" width="16" height="16" viewBox="0 0 16 16" fill="currentColor" style="margin-right: 2px; transition: transform 0.2s;">
+                                <path fill-rule="evenodd" clip-rule="evenodd" d="M10.072 11.428 6.643 8l3.429-3.428L9.07 3.5 4.57 8l4.5 4.5 1.002-1.072z"/>
+                            </svg>
+                            <svg class="sidebar-icon-expanded" width="22" height="22" viewBox="0 0 16 16" fill="currentColor">
+                                <path fill-rule="evenodd" clip-rule="evenodd" d="M2 3v10h12V3H2zm11 1H6v8h7V4zM3 4v8h2V4H3z"/>
+                            </svg>
+                            <svg class="sidebar-icon-collapsed hidden" width="22" height="22" viewBox="0 0 16 16" fill="currentColor">
+                                <path fill-rule="evenodd" clip-rule="evenodd" d="M2 3v10h12V3H2zm1 9h10V4H3v8z"/>
+                            </svg>
+                        </button>
+                        <div class="header-info">
+                            <h2 id="current-session-title">Select a session</h2>
+                            <div id="current-session-id" class="session-id-subtitle"></div>
+                        </div>
                     </div>
                 </div>
                 
