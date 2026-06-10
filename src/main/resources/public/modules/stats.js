@@ -59,7 +59,9 @@ export function renderStats(steps) {
   sortedSteps.forEach((step) => {
     const t = new Date(step.created_at).getTime();
     const endT = getStepEndTime(step);
-    if (step.type === "USER_INPUT" || !currentSegment) {
+    const isUserStep =
+      step.source === "USER_EXPLICIT" || step.type === "USER_INPUT";
+    if (isUserStep || !currentSegment) {
       if (currentSegment) {
         segments.push(currentSegment);
       }
