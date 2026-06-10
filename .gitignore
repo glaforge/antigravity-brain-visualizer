@@ -32,6 +32,7 @@ gradle-app.setting
 *.ctxt
 .mtj.tmp/
 *.jar
+!gradle/wrapper/gradle-wrapper.jar
 *.war
 *.nar
 *.ear
