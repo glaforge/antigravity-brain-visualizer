@@ -76,11 +76,10 @@ public class AnalysisController {
 
     @Inject
     public AnalysisController(
-        ChatModel chatModel,
+        AnalyzerService analyzerService,
         @Named(TaskExecutors.IO) ExecutorService executor
     ) {
-        this.analyzerService =
-            AiServices.builder(AnalyzerService.class).chatModel(chatModel).build();
+        this.analyzerService = analyzerService;
         this.executor = executor;
     }
 
