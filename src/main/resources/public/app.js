@@ -198,9 +198,9 @@ function renderConversationsList() {
     const div = document.createElement("div");
     div.className = "conv-item";
     div.dataset.id = conv.id;
-    div.innerHTML = `<div class="conv-id" title="${conv.id}">${escapeHtml(
-      conv.summary
-    )}</div>`;
+    div.dataset.summary = conv.summary;
+    div.dataset.updatedAt = conv.updatedAt || "0";
+    div.innerHTML = `<div class="conv-id">${escapeHtml(conv.summary)}</div>`;
     list.appendChild(div);
   });
 
@@ -212,6 +212,75 @@ function renderConversationsList() {
         selectConversation(item.dataset.id, item);
       }
     });
+
+    // Custom Popover Logic
+    const popover = document.getElementById("conv-popover");
+    list.addEventListener("mouseover", (e) => {
+      const item = e.target.closest(".conv-item");
+      if (item && item.dataset.id && popover) {
+        document.getElementById("popover-title").innerText =
+          item.dataset.summary;
+        document.getElementById("popover-id").innerText = item.dataset.id;
+
+        const timestamp = parseInt(item.dataset.updatedAt, 10);
+        let timeStr = "Unknown time";
+        if (timestamp > 0) {
+          const d = new Date(timestamp);
+          const dateText = d.toLocaleDateString("en-US", {
+            year: "numeric",
+            month: "long",
+            day: "numeric",
+          });
+
+          const diffMs = Date.now() - timestamp;
+          const diffMin = Math.floor(diffMs / (1000 * 60));
+          const diffHour = Math.floor(diffMs / (1000 * 60 * 60));
+          const diffDay = Math.floor(diffMs / (1000 * 60 * 60 * 24));
+
+          let relStr;
+          if (diffDay > 0)
+            relStr = diffDay === 1 ? "1 day ago" : `${diffDay} days ago`;
+          else if (diffHour > 0)
+            relStr = diffHour === 1 ? "1 hour ago" : `${diffHour} hours ago`;
+          else if (diffMin > 0)
+            relStr = diffMin === 1 ? "1 minute ago" : `${diffMin} minutes ago`;
+          else relStr = "just now";
+
+          timeStr = `${dateText} (${relStr})`;
+        }
+        document.getElementById("popover-time").innerHTML = timeStr;
+
+        popover.classList.remove("hidden");
+      }
+    });
+
+    list.addEventListener("mousemove", (e) => {
+      const item = e.target.closest(".conv-item");
+      if (item && popover && !popover.classList.contains("hidden")) {
+        let top = e.clientY + 15;
+        let left = e.clientX + 15;
+
+        // Prevent overflow off bottom/right edges
+        if (top + popover.offsetHeight > window.innerHeight) {
+          top = e.clientY - popover.offsetHeight - 15;
+        }
+        if (left + popover.offsetWidth > window.innerWidth) {
+          left = e.clientX - popover.offsetWidth - 15;
+        }
+
+        popover.style.top = `${top}px`;
+        popover.style.left = `${left}px`;
+      }
+    });
+
+    list.addEventListener("mouseout", (e) => {
+      const item = e.target.closest(".conv-item");
+      if (item && popover) {
+        if (e.relatedTarget && item.contains(e.relatedTarget)) return;
+        popover.classList.add("hidden");
+      }
+    });
+
     list.dataset.listenerAttached = "true";
   }
 
