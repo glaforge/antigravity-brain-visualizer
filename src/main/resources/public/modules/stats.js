@@ -44,18 +44,29 @@ export function renderStats(steps) {
       (a, b) =>
         new Date(a.created_at).getTime() - new Date(b.created_at).getTime()
     );
+  const getStepEndTime = (step) => {
+    let t = new Date(step.created_at).getTime();
+    if (step.content) {
+      const match = step.content.match(/Completed At:\s*([^\n]+)/);
+      if (match && match[1]) {
+        const c = new Date(match[1].trim()).getTime();
+        if (!isNaN(c)) t = Math.max(t, c);
+      }
+    }
+    return t;
+  };
+
   sortedSteps.forEach((step) => {
     const t = new Date(step.created_at).getTime();
-    if (!currentSegment) {
-      currentSegment = { start: t, end: t, steps: 1 };
-    } else {
-      if (t - currentSegment.end > 5 * 60 * 1000) {
+    const endT = getStepEndTime(step);
+    if (step.type === "USER_INPUT" || !currentSegment) {
+      if (currentSegment) {
         segments.push(currentSegment);
-        currentSegment = { start: t, end: t, steps: 1 };
-      } else {
-        currentSegment.end = t;
-        currentSegment.steps++;
       }
+      currentSegment = { start: t, end: endT, steps: 1 };
+    } else {
+      currentSegment.end = Math.max(currentSegment.end, endT);
+      currentSegment.steps++;
     }
   });
   if (currentSegment) {
@@ -150,6 +161,14 @@ export function renderStats(steps) {
     durationChartHtml += '<div class="stat-sub">No active segments</div>';
   } else {
     const totalMs = segments[segments.length - 1].end - segments[0].start;
+    window.timelineStart = segments[0].start;
+    window.timelineTotalMs = totalMs;
+
+    const bottomMarker = document.getElementById("timeline-bottom-marker");
+    if (bottomMarker) {
+      bottomMarker.dataset.timestamp =
+        window.timelineStart + window.timelineTotalMs;
+    }
 
     let totalPausedMs = 0;
     let totalActiveMs = 0;
@@ -176,24 +195,28 @@ export function renderStats(steps) {
     )}</strong></span>`;
 
     durationChartHtml +=
-      '<div style="display: flex; height: 24px; width: 100%; background: rgba(30, 41, 59, 0.4); border-radius: 6px; overflow: hidden; border: 1px solid rgba(255,255,255,0.05);">';
+      '<div style="position: relative; height: 24px; width: 100%; background: rgba(30, 41, 59, 0.4); border-radius: 6px; overflow: hidden; border: 1px solid rgba(255,255,255,0.05);">';
 
     if (totalMs === 0) {
-      durationChartHtml += `<div style="width: 100%; height: 100%; background: #f59e0b;" onmouseover="const el=document.getElementById('timeline-hover-info'); el.innerHTML='<span style=\\'color:#f59e0b;\\'>Instant action</span>';" onmouseout="const el=document.getElementById('timeline-hover-info'); el.innerHTML=el.getAttribute('data-default');"></div>`;
+      durationChartHtml += `<div style="position: absolute; left: 0%; width: 100%; height: 100%; background: #f59e0b;" onmouseover="const el=document.getElementById('timeline-hover-info'); el.innerHTML='<span style=\\'color:#f59e0b;\\'>Instant action</span>';" onmouseout="const el=document.getElementById('timeline-hover-info'); el.innerHTML=el.getAttribute('data-default');"></div>`;
     } else {
       let lastEnd = segments[0].start;
       segments.forEach((seg, index) => {
         const gapMs = seg.start - lastEnd;
         if (gapMs > 0) {
+          const gapStartPct =
+            ((lastEnd - window.timelineStart) / totalMs) * 100;
           const gapPct = (gapMs / totalMs) * 100;
           const gapStartStr = formatTime(lastEnd, false);
           const gapEndStr = formatTime(seg.start, false);
           const gapLenStr = formatMs(gapMs);
           const hoverText = `<span style=\\'color:var(--text-secondary);\\'>Pause: ${gapStartStr} - ${gapEndStr} (<strong style=\\'color:var(--text-primary);\\'>${gapLenStr}</strong>)</span>`;
-          durationChartHtml += `<div style="width: ${gapPct}%; height: 100%; background: transparent; cursor: ew-resize; transition: background 0.2s;" onmouseover="this.style.background='rgba(255,255,255,0.05)'; const el=document.getElementById('timeline-hover-info'); el.innerHTML='${hoverText}';" onmouseout="this.style.background='transparent'; const el=document.getElementById('timeline-hover-info'); el.innerHTML=el.getAttribute('data-default');"></div>`;
+          durationChartHtml += `<div style="position: absolute; left: ${gapStartPct}%; width: ${gapPct}%; height: 100%; background: transparent; cursor: pointer; transition: background 0.2s;" onclick="if(window.scrollToTime) { const pct = event.offsetX / this.offsetWidth; window.scrollToTime(${lastEnd} + pct * ${gapMs}); }" onmouseover="this.style.background='rgba(255,255,255,0.05)'; const el=document.getElementById('timeline-hover-info'); el.innerHTML='${hoverText}';" onmouseout="this.style.background='transparent'; const el=document.getElementById('timeline-hover-info'); el.innerHTML=el.getAttribute('data-default');"></div>`;
         }
 
         const segMs = seg.end - seg.start;
+        const segStartPct =
+          ((seg.start - window.timelineStart) / totalMs) * 100;
         const segPct = (segMs / totalMs) * 100;
 
         const startStr = formatTime(seg.start, false);
@@ -208,12 +231,14 @@ export function renderStats(steps) {
           else lenStr = `${diffSecs}s`;
         }
 
-        const hoverText = `<span style=\\'color:#f59e0b;\\'>Active Segment: ${startStr} - ${endStr} (<strong style=\\'color:var(--text-primary);\\'>${lenStr}</strong>)</span>`;
-        durationChartHtml += `<div style="width: ${segPct}%; min-width: 2px; height: 100%; background: #f59e0b; cursor: crosshair; transition: opacity 0.2s; opacity: 0.8;" onmouseover="this.style.opacity=1; const el=document.getElementById('timeline-hover-info'); el.innerHTML='${hoverText}';" onmouseout="this.style.opacity=0.8; const el=document.getElementById('timeline-hover-info'); el.innerHTML=el.getAttribute('data-default');"></div>`;
+        const hoverText = `<span style=\\'color:#f59e0b;\\'>Sequence: ${startStr} - ${endStr} (<strong style=\\'color:var(--text-primary);\\'>${lenStr}</strong>)</span>`;
+        const leftCss = `calc(${segStartPct}% - ${(segStartPct / 100) * 2}px)`;
+        durationChartHtml += `<div style="position: absolute; left: ${leftCss}; width: ${segPct}%; min-width: 2px; height: 100%; background: #f59e0b; cursor: pointer; transition: opacity 0.2s; opacity: 0.8;" onclick="if(window.scrollToTime) { const pct = event.offsetX / Math.max(this.offsetWidth, 2); window.scrollToTime(${seg.start} + pct * ${segMs}); }" onmouseover="this.style.opacity=1; const el=document.getElementById('timeline-hover-info'); el.innerHTML='${hoverText}';" onmouseout="this.style.opacity=0.8; const el=document.getElementById('timeline-hover-info'); el.innerHTML=el.getAttribute('data-default');"></div>`;
 
         lastEnd = seg.end;
       });
     }
+    durationChartHtml += `<div id="session-timeline-indicator" style="position: absolute; top: 0; bottom: 0; left: 0%; width: 0%; background: rgba(255, 255, 255, 0.2); border: 1px solid rgba(255, 255, 255, 0.5); box-sizing: border-box; border-radius: 4px; pointer-events: none; transition: left 0.1s ease-out, width 0.1s ease-out; display: none; z-index: 10;"></div>`;
     durationChartHtml += "</div>";
 
     durationChartHtml += `<div id="timeline-hover-info" data-default='${defaultSummary}' style="display: flex; justify-content: space-between; margin-top: 12px; font-size: 0.8rem; color: var(--text-secondary); transition: all 0.2s;">${defaultSummary}</div>`;

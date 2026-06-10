@@ -52,7 +52,22 @@ export function renderTranscript(steps, container) {
     else if (isFinalModelResponse) cardClass += " final-response-step";
 
     card.className = cardClass;
-    if (step.created_at) card.dataset.time = formatTime(step.created_at, false);
+    if (step.created_at) {
+      card.dataset.time = formatTime(step.created_at, false);
+      const startMs = new Date(step.created_at).getTime();
+      card.dataset.timestamp = startMs;
+
+      let endMs = startMs;
+      if (step.content) {
+        const match = step.content.match(/Completed At:\s*([^\n]+)/);
+        if (match && match[1]) {
+          const c = new Date(match[1].trim()).getTime();
+          if (!isNaN(c)) endMs = Math.max(endMs, c);
+        }
+      }
+      card.dataset.timestampEnd = endMs;
+    }
+
     card.style.animationDelay = `${Math.min(index * 0.015, 0.3)}s`;
 
     let badgeClass = "system";
@@ -451,6 +466,11 @@ export function renderTranscript(steps, container) {
           "0 4px 6px -1px rgba(0, 0, 0, 0.1), 0 2px 4px -1px rgba(0, 0, 0, 0.06)",
         transition: "all 0.3s ease",
       });
+      if (card.dataset.timestamp) {
+        currentSequenceContainer.dataset.timestampStart =
+          card.dataset.timestamp;
+        currentSequenceContainer.dataset.timestampEnd = card.dataset.timestamp;
+      }
       container.appendChild(currentSequenceContainer);
 
       const sequenceHeader = document.createElement("div");
@@ -463,13 +483,52 @@ export function renderTranscript(steps, container) {
         color: "var(--text-secondary)",
         fontSize: "0.75rem",
         fontWeight: "600",
-        textTransform: "uppercase",
         letterSpacing: "0.05em",
         userSelect: "none",
       });
+      let durationText = "";
+      try {
+        if (card.dataset.timestamp) {
+          const startIndex = index;
+          let endIndex = index;
+          for (let i = index + 1; i < steps.length; i++) {
+            if (cards[i] && cards[i].dataset.isUser === "true") {
+              break;
+            }
+            endIndex = i;
+          }
+          if (endIndex > startIndex && cards[endIndex].dataset.timestamp) {
+            const startMs = parseInt(card.dataset.timestamp, 10);
+            const endMs = parseInt(cards[endIndex].dataset.timestamp, 10);
+            currentSequenceContainer.dataset.timestampEnd = endMs;
+
+            const start = new Date(steps[index].created_at);
+            const end = new Date(steps[endIndex].created_at);
+            const diffMs = end - start;
+            if (!isNaN(diffMs) && diffMs >= 0) {
+              const diffSec = Math.floor(diffMs / 1000);
+              const diffMin = Math.floor(diffSec / 60);
+              const diffHour = Math.floor(diffMin / 60);
+
+              if (diffHour > 0) {
+                durationText = ` · ⏱ ${diffHour}h ${diffMin % 60}m`;
+              } else if (diffMin > 0) {
+                durationText = ` · ⏱ ${diffMin}m ${diffSec % 60}s`;
+              } else if (diffSec > 0) {
+                durationText = ` · ⏱ ${diffSec}s`;
+              } else {
+                durationText = ` · ⏱ <1s`;
+              }
+            }
+          }
+        }
+      } catch (e) {
+        console.error("Error calculating duration", e);
+      }
+
       sequenceHeader.innerHTML = `
         <span class="seq-chevron" style="display:inline-block; transition: transform 0.2s; transform: rotate(90deg); font-size: 1.2rem; line-height: 1;">›</span>
-        <span>Sequence ${sequenceCounter++}</span>
+        <span>Sequence ${sequenceCounter++}${durationText}</span>
       `;
       currentSequenceContainer.appendChild(sequenceHeader);
 
@@ -496,8 +555,67 @@ export function renderTranscript(steps, container) {
       });
     } else {
       currentStepsWrapper.appendChild(card);
+      if (card.dataset.timestamp) {
+        currentSequenceContainer.dataset.timestampEnd = card.dataset.timestamp;
+      }
     }
   });
 
+  const bottomMarker = document.createElement("div");
+  bottomMarker.id = "timeline-bottom-marker";
+  bottomMarker.style.height = "1px";
+  bottomMarker.style.width = "100%";
+  if (window.timelineStart && window.timelineTotalMs) {
+    bottomMarker.dataset.timestamp =
+      window.timelineStart + window.timelineTotalMs;
+  }
+  container.appendChild(bottomMarker);
+
   window.dispatchEvent(new Event("transcriptLoaded"));
 }
+
+window.scrollToTime = function (targetTimeMs) {
+  const cards = Array.from(
+    document.querySelectorAll(".step-card[data-timestamp]")
+  );
+  if (cards.length === 0) return;
+
+  let bestAfter = null;
+  let minDiffAfter = Infinity;
+  let bestBefore = null;
+  let minDiffBefore = Infinity;
+
+  cards.forEach((c) => {
+    const ts = parseInt(c.dataset.timestamp, 10);
+    const diff = ts - targetTimeMs;
+
+    if (diff >= 0 && diff < minDiffAfter) {
+      minDiffAfter = diff;
+      bestAfter = c;
+    } else if (diff < 0 && Math.abs(diff) < minDiffBefore) {
+      minDiffBefore = Math.abs(diff);
+      bestBefore = c;
+    }
+  });
+
+  // Bias towards showing the next step/sequence if we click exactly in a gap,
+  // but fall back to the closest previous step if there are no steps after.
+  const targetCard = bestAfter || bestBefore;
+
+  if (targetCard) {
+    // Expand the sequence if it is collapsed
+    const seqContent = targetCard.closest(".sequence-content");
+    if (seqContent && seqContent.style.display === "none") {
+      const seqHeader = seqContent.previousElementSibling;
+      if (seqHeader) seqHeader.click();
+    }
+
+    targetCard.scrollIntoView({ behavior: "smooth", block: "center" });
+    targetCard.style.transition = "box-shadow 0.3s ease";
+    targetCard.style.boxShadow =
+      "0 0 0 2px var(--accent-blue), 0 0 20px rgba(96, 165, 250, 0.4)";
+    setTimeout(() => {
+      targetCard.style.boxShadow = "";
+    }, 2000);
+  }
+};

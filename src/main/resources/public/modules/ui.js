@@ -128,7 +128,49 @@ function initScrubber() {
   let isTicking = false;
 
   // Use IntersectionObserver to update label efficiently without getBoundingClientRect
-  const observer = new IntersectionObserver(
+  let visibleCards = new Set();
+
+  const updateTimelineRect = () => {
+    if (window.timelineTotalMs > 0 && visibleCards.size > 0) {
+      let minTs = Infinity;
+      let maxTs = -Infinity;
+      visibleCards.forEach((el) => {
+        if (el.dataset.timestampStart && el.dataset.timestampEnd) {
+          const start = parseInt(el.dataset.timestampStart, 10);
+          const end = parseInt(el.dataset.timestampEnd, 10);
+          if (start < minTs) minTs = start;
+          if (end > maxTs) maxTs = end;
+        } else if (el.dataset.timestamp) {
+          const tsStart = parseInt(el.dataset.timestamp, 10);
+          const tsEnd = el.dataset.timestampEnd
+            ? parseInt(el.dataset.timestampEnd, 10)
+            : tsStart;
+          if (tsStart < minTs) minTs = tsStart;
+          if (tsEnd > maxTs) maxTs = tsEnd;
+        }
+      });
+
+      if (minTs !== Infinity && maxTs !== -Infinity) {
+        // Add a slight buffer to the width so it doesn't look like a 0px line for a single card
+        const startPct =
+          ((minTs - window.timelineStart) / window.timelineTotalMs) * 100;
+        let widthPct = ((maxTs - minTs) / window.timelineTotalMs) * 100;
+
+        const indicator = document.getElementById("session-timeline-indicator");
+        if (indicator) {
+          const clampedStart = Math.max(0, Math.min(100, startPct));
+          indicator.style.left = `calc(${clampedStart}% - ${
+            (clampedStart / 100) * 2
+          }px)`;
+          indicator.style.width = widthPct + "%";
+          indicator.style.minWidth = "2px";
+          indicator.style.display = "block";
+        }
+      }
+    }
+  };
+
+  const labelObserver = new IntersectionObserver(
     (entries) => {
       entries.forEach((entry) => {
         if (entry.isIntersecting) {
@@ -141,7 +183,32 @@ function initScrubber() {
     },
     {
       root: scrollContainer,
-      rootMargin: "-10% 0px -80% 0px", // Detect cards near the top 10%-20% of the container
+      rootMargin: "-10% 0px -80% 0px",
+      threshold: 0,
+    }
+  );
+
+  const rectObserver = new IntersectionObserver(
+    (entries) => {
+      let changedVisibility = false;
+      entries.forEach((entry) => {
+        if (entry.isIntersecting) {
+          visibleCards.add(entry.target);
+          changedVisibility = true;
+        } else {
+          if (visibleCards.has(entry.target)) {
+            visibleCards.delete(entry.target);
+            changedVisibility = true;
+          }
+        }
+      });
+      if (changedVisibility) {
+        updateTimelineRect();
+      }
+    },
+    {
+      root: scrollContainer,
+      rootMargin: "0px",
       threshold: 0,
     }
   );
@@ -151,12 +218,21 @@ function initScrubber() {
     mutations.forEach((mutation) => {
       mutation.addedNodes.forEach((node) => {
         if (node.nodeType === 1) {
-          if (node.classList.contains("step-card")) {
-            observer.observe(node);
+          if (
+            node.classList.contains("step-card") ||
+            node.id === "timeline-bottom-marker"
+          ) {
+            if (node.classList.contains("step-card"))
+              labelObserver.observe(node);
+            rectObserver.observe(node);
           }
           node
-            .querySelectorAll(".step-card")
-            .forEach((card) => observer.observe(card));
+            .querySelectorAll(".step-card, #timeline-bottom-marker")
+            .forEach((card) => {
+              if (card.classList.contains("step-card"))
+                labelObserver.observe(card);
+              rectObserver.observe(card);
+            });
         }
       });
     });

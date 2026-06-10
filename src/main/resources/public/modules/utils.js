@@ -120,4 +120,12 @@ export function updateTranscriptFilter() {
 
     c.style.display = show ? "block" : "none";
   });
+
+  const wrappers = document.querySelectorAll(".sequence-wrapper");
+  wrappers.forEach((wrapper) => {
+    const hasVisibleCard = Array.from(
+      wrapper.querySelectorAll(".step-card")
+    ).some((c) => c.style.display === "block");
+    wrapper.style.display = hasVisibleCard ? "block" : "none";
+  });
 }
