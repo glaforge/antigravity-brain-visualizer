@@ -283,6 +283,10 @@ public class AnalysisController {
                                 try {
                                     seqResponse = analyzerService.analyze(chunk);
                                 } catch (Exception e) {
+                                    System.err.println(
+                                        "Failed to parse chunk from LLM: " + e.getMessage()
+                                    );
+                                    e.printStackTrace();
                                     // Ignore unparseable chunk
                                 }
 

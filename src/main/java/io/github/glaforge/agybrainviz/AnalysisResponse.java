@@ -16,8 +16,12 @@
 package io.github.glaforge.agybrainviz;
 
 import dev.langchain4j.model.output.structured.Description;
+import io.micronaut.core.annotation.ReflectiveAccess;
+import io.micronaut.serde.annotation.Serdeable;
 import java.util.List;
 
+@ReflectiveAccess
+@Serdeable
 public record AnalysisResponse(
     @Description("A very short title (max 50 chars) summarizing the session") String shortTitle,
 
