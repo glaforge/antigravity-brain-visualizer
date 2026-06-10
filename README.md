@@ -14,12 +14,36 @@ The visualizer automatically scans your local filesystem for agent session trans
 
 Additionally, it leverages Google's Gemini LLMs to automatically generate comprehensive executive summaries of long conversations—distilling thousands of lines of transcript into the core user intent, key technical decisions, and the final outcome of the session.
 
+> [!NOTE]
+> **Filesystem Modifications:** When you generate an AI summary for a session, the visualizer caches the result by creating a `summary.json` file and a `short_title.txt` file directly inside that specific agent's `.gemini/brain` directory. This prevents redundant LLM calls and speeds up future loads.
+
 ### Key Features
-- **Interactive Timeline**: An expandable sequence timeline of user inputs, agent thoughts, system context events, and tool executions.
-- **AI-Powered Summarization**: Automated multi-stage reduction of long transcripts using Gemini to provide instant high-level context.
-- **Rich Formatting**: Code syntax highlighting for generated artifacts, JSON payloads, and terminal outputs.
-- **Session Analytics**: Session statistics including step counts and tool usage frequency metrics.
-- **Filtering**: Toggle specific event types (User Queries, Tool Calls, Errors, Model Responses) to cut through the noise of a long session.
+
+**Session Management**
+*   **Session Loading**: Parses local `.gemini/brain` directories to list past and active agent sessions.
+*   **Search & Filtering**: Includes a text search input to find sessions, and a dropdown to filter sessions by agent type (CLI, IDE, Agent).
+*   **Sorting & Refreshing**: Provides toggle controls to sort sessions chronologically and a refresh button to load new sessions.
+*   **Session Metadata**: Hovering over a session displays an overview popover containing metadata such as step counts and session IDs.
+*   **Adjustable Layout**: The sidebar features a drag handle to resize its width or collapse it entirely.
+
+**Timeline & Navigation**
+*   **Proportional Timeline**: Displays a visual bar representing the elapsed wall-clock duration of the session, mapping active sequences and idle gaps proportionally.
+*   **Viewport Tracking**: A translucent indicator moves across the timeline to highlight the exact time span of the transcript steps currently visible on the screen.
+*   **Interactive Scrubbing**: Clicking the timeline auto-scrolls the transcript to the corresponding chronological point.
+*   **Duration Metrics**: Hovering over timeline segments displays start/end timestamps and elapsed durations.
+
+**Transcript Rendering**
+*   **Sequence Grouping**: Raw JSONL steps are grouped into collapsible sequences triggered by user inputs, displaying the calculated wall-clock duration of each sequence.
+*   **Step Formatting**: Steps are formatted as individual UI cards depending on their actor (User, Model, Tool, System), with syntax highlighting for code and tool outputs.
+
+**Content Filtering & Search**
+*   **Step Filtering**: Toggles to show or hide specific step types (User Queries, Tool Calls, Errors, Model Responses). Empty sequence containers are automatically hidden when filters are applied.
+*   **In-Transcript Search**: A find-in-page text search utility to navigate through text matches within the active transcript.
+
+**AI Summarization**
+*   **Backend Integration**: The Micronaut backend integrates with Google Gemini via LangChain4j.
+*   **Session Summaries**: Analyzes raw JSONL transcripts via LLM to generate a high-level overview of the agent's actions and outcomes.
+*   **Summary Panel**: The generated summary is injected into a collapsible panel at the top of the transcript view.
 
 ## Technology Stack & Implementation
 This project prioritizes a lightweight, high-performance, and maintainable architecture:
@@ -27,6 +51,18 @@ This project prioritizes a lightweight, high-performance, and maintainable archi
 - **Backend**: Built with [Micronaut](https://micronaut.io/) (Java). It serves the frontend static assets and provides native REST APIs to securely read and parse the local file-system transcripts.
 - **AI Integration**: Powered by [LangChain4j](https://github.com/langchain4j/langchain4j) connecting directly to [Google Gemini models](https://docs.langchain4j.dev/integrations/language-models/google-genai/). It uses chunking and recursive consolidation to process large transcript files that exceed standard token limits.
 - **Frontend**: A zero-build Vanilla JavaScript, HTML, and CSS single-page application. It avoids heavy framework overhead, relying instead on standard browser DOM APIs, customized CSS grid/flexbox layouts, and minimal dependencies (`marked.js` and `highlight.js`) for efficient rendering and responsiveness.
+
+## Installation
+
+The easiest way to install and use the Antigravity Brain Visualizer is to download the pre-compiled native executable for your operating system.
+
+1. Navigate to the [Releases](https://github.com/glaforge/antigravity-brain-visualizer/releases) section of this repository.
+2. Download the appropriate binary asset for your OS (macOS, Linux, or Windows).
+3. Make the file executable if necessary (e.g., `chmod +x agy-brain-viz-macos-arm64`).
+4. Run it directly from your terminal.
+5. Open your web browser and navigate to [http://localhost:8080](http://localhost:8080) to view the interface.
+
+Alternatively, you can clone this repository and run or build it locally from source.
 
 ## Running the Application
 
@@ -37,7 +73,7 @@ export GEMINI_API_KEY="your-api-key-here"
 ./gradlew run
 ```
 
-By default, the visualizer will be available at [http://localhost:8080](http://localhost:8080).
+Once the server starts, open your web browser and navigate to [http://localhost:8080](http://localhost:8080) to interact with the visualizer.
 
 ### Customizing the Port
 
