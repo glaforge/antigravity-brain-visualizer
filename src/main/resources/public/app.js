@@ -159,8 +159,26 @@ document.addEventListener("DOMContentLoaded", () => {
   }
 
   const searchInput = document.getElementById("conversation-search");
+  const clearSearchBtn = document.getElementById("clear-search-btn");
   if (searchInput) {
-    searchInput.addEventListener("input", renderConversationsList);
+    searchInput.addEventListener("input", () => {
+      if (clearSearchBtn) {
+        clearSearchBtn.style.display =
+          searchInput.value.length > 0 ? "block" : "none";
+      }
+      renderConversationsList();
+    });
+  }
+
+  if (clearSearchBtn) {
+    clearSearchBtn.addEventListener("click", () => {
+      if (searchInput) {
+        searchInput.value = "";
+        clearSearchBtn.style.display = "none";
+        renderConversationsList();
+        searchInput.focus();
+      }
+    });
   }
 });
 
