@@ -22,10 +22,12 @@ import { initUI } from "./modules/ui.js";
 let allConversations = [];
 let sortDescending = true;
 
-document.addEventListener("DOMContentLoaded", () => {
+document.addEventListener("DOMContentLoaded", async () => {
   initUI();
 
   const flavorSelect = document.getElementById("flavor-select");
+  await loadFlavors(flavorSelect);
+
   const savedFlavor = localStorage.getItem("agy-flavor");
   if (savedFlavor) {
     flavorSelect.value = savedFlavor;
@@ -182,6 +184,22 @@ document.addEventListener("DOMContentLoaded", () => {
   }
 });
 
+async function loadFlavors(selectElement) {
+    try {
+        const res = await fetch(`/api/brain/flavors`);
+        const flavors = await res.json();
+        selectElement.innerHTML = "";
+        flavors.forEach(f => {
+            const opt = document.createElement("option");
+            opt.value = f;
+            opt.text = f;
+            selectElement.appendChild(opt);
+        });
+    } catch (e) {
+        console.error("Failed to load flavors", e);
+    }
+}
+
 async function loadConversations() {
   const list = document.getElementById("conversations-list");
   const flavor = encodeURIComponent(
@@ -228,7 +246,7 @@ function renderConversationsList() {
     div.dataset.id = conv.id;
     div.dataset.summary = conv.summary;
     div.dataset.updatedAt = conv.updatedAt || "0";
-    div.innerHTML = `<div class="conv-id">${escapeHtml(conv.summary)}</div>`;
+    div.innerHTML = `<div class=\"conv-id\">${escapeHtml(conv.summary)}</div>`;
     list.appendChild(div);
   });
 

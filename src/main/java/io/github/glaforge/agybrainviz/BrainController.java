@@ -28,6 +28,7 @@ import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.Paths;
+import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
@@ -41,6 +42,32 @@ public class BrainController {
     private Path getBrainPath(String flavor) {
         if (flavor == null || flavor.isEmpty()) flavor = "antigravity-cli";
         return Paths.get(System.getProperty("user.home"), ".gemini", flavor, "brain");
+    }
+
+    @ExecuteOn(TaskExecutors.IO)
+    @Get("/flavors")
+    public List<String> listFlavors() {
+        Path geminiPath = Paths.get(System.getProperty("user.home"), ".gemini");
+        try (Stream<Path> paths = Files.list(geminiPath)) {
+            return paths
+                .filter(Files::isDirectory)
+                .map(p -> p.getFileName().toString())
+                // Restricting: only "antigravity", "antigravity-cli", "antigravity-ide" or "jetski"
+                // that actually contain a "brain" folder
+                .filter(name -> {
+                    boolean matches = name.equals("antigravity") || 
+                                      name.equals("antigravity-cli") || 
+                                      name.equals("antigravity-ide") || 
+                                      name.equals("jetski");
+                    if (!matches) return false;
+                    Path brainPath = Paths.get(System.getProperty("user.home"), ".gemini", name, "brain");
+                    return Files.exists(brainPath);
+                })
+                .collect(Collectors.toList());
+        } catch (IOException e) {
+            e.printStackTrace();
+            return List.of();
+        }
     }
 
     @ExecuteOn(TaskExecutors.IO)

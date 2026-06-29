@@ -1,15 +1,20 @@
 <!DOCTYPE html>
 <html lang="en">
+
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Antigravity Brain Visualizer</title>
     <link rel="stylesheet" href="style.css">
-    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.9.0/styles/tokyo-night-dark.min.css">
+    <link rel="stylesheet"
+        href="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.9.0/styles/tokyo-night-dark.min.css">
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-    <link href="https://fonts.googleapis.com/css2?family=Roboto:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
+    <link
+        href="https://fonts.googleapis.com/css2?family=Roboto:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap"
+        rel="stylesheet">
 </head>
+
 <body>
     <div class="app-container">
         <!-- Sidebar for Conversations -->
@@ -19,25 +24,45 @@
                     <img src="logo.png" alt="Antigravity Brain Visualizer">
                 </div>
                 <div style="margin-top: 16px; padding: 0 24px;">
-                    <select id="flavor-select" style="width: 100%; padding: 8px; border-radius: 6px; background: rgba(30, 41, 59, 0.5); color: var(--text-primary); border: 1px solid var(--border-color); outline: none; font-size: 0.9rem;">
-                        <option value="antigravity-cli">Antigravity CLI</option>
-                        <option value="antigravity-ide">Antigravity IDE</option>
-                        <option value="antigravity">Antigravity Agent</option>
+                    <select id="flavor-select"
+                        style="width: 100%; padding: 8px; border-radius: 6px; background: rgba(30, 41, 59, 0.5); color: var(--text-primary); border: 1px solid var(--border-color); outline: none; font-size: 0.9rem;">
+                        <option value="antigravity-cli">Loading flavors...</option>
                     </select>
                 </div>
                 <div style="margin-top: 12px; padding: 0 24px; display: flex; gap: 8px;">
                     <div style="position: relative; flex: 1; display: flex; align-items: center;">
-                        <input type="text" id="conversation-search" placeholder="Search sessions..." style="width: 100%; padding: 6px 28px 6px 12px; border-radius: 6px; background: rgba(30, 41, 59, 0.5); color: var(--text-primary); border: 1px solid var(--border-color); outline: none; font-size: 0.85rem;" />
-                        <svg id="clear-search-btn" style="position: absolute; right: 8px; cursor: pointer; color: var(--text-secondary); display: none;" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                        <input type="text" id="conversation-search" placeholder="Search sessions..."
+                            style="width: 100%; padding: 6px 28px 6px 12px; border-radius: 6px; background: rgba(30, 41, 59, 0.5); color: var(--text-primary); border: 1px solid var(--border-color); outline: none; font-size: 0.85rem;" />
+                        <svg id="clear-search-btn"
+                            style="position: absolute; right: 8px; cursor: pointer; color: var(--text-secondary); display: none;"
+                            width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+                            stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
                             <line x1="18" y1="6" x2="6" y2="18"></line>
                             <line x1="6" y1="6" x2="18" y2="18"></line>
                         </svg>
                     </div>
-                    <button id="refresh-conversations-btn" class="icon-btn" style="padding: 6px 8px; border-radius: 6px; background: rgba(30, 41, 59, 0.5); border: 1px solid var(--border-color); color: var(--text-primary); cursor: pointer; display: flex; align-items: center; justify-content: center;" title="Refresh Sessions">
-                        <svg style="transition: transform 0.3s ease;" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="23 4 23 10 17 10"></polyline><polyline points="1 20 1 14 7 14"></polyline><path d="M3.51 9a9 9 0 0 1 14.85-3.36L23 10M1 14l4.64 4.36A9 9 0 0 0 20.49 15"></path></svg>
+                    <button id="refresh-conversations-btn" class="icon-btn"
+                        style="padding: 6px 8px; border-radius: 6px; background: rgba(30, 41, 59, 0.5); border: 1px solid var(--border-color); color: var(--text-primary); cursor: pointer; display: flex; align-items: center; justify-content: center;"
+                        title="Refresh Sessions">
+                        <svg style="transition: transform 0.3s ease;" width="16" height="16" viewBox="0 0 24 24"
+                            fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"
+                            stroke-linejoin="round">
+                            <polyline points="23 4 23 10 17 10"></polyline>
+                            <polyline points="1 20 1 14 7 14"></polyline>
+                            <path d="M3.51 9a9 9 0 0 1 14.85-3.36L23 10M1 14l4.64 4.36A9 9 0 0 0 20.49 15"></path>
+                        </svg>
                     </button>
-                    <button id="sort-conversations-btn" class="icon-btn" style="padding: 6px 8px; border-radius: 6px; background: rgba(30, 41, 59, 0.5); border: 1px solid var(--border-color); color: var(--text-primary); cursor: pointer; display: flex; align-items: center; justify-content: center;" title="Sort Oldest/Newest">
-                        <svg style="transition: transform 0.3s ease;" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m21 16-4 4-4-4"></path><path d="M17 20V4"></path><path d="m3 8 4-4 4 4"></path><path d="M7 4v16"></path></svg>
+                    <button id="sort-conversations-btn" class="icon-btn"
+                        style="padding: 6px 8px; border-radius: 6px; background: rgba(30, 41, 59, 0.5); border: 1px solid var(--border-color); color: var(--text-primary); cursor: pointer; display: flex; align-items: center; justify-content: center;"
+                        title="Sort Oldest/Newest">
+                        <svg style="transition: transform 0.3s ease;" width="16" height="16" viewBox="0 0 24 24"
+                            fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"
+                            stroke-linejoin="round">
+                            <path d="m21 16-4 4-4-4"></path>
+                            <path d="M17 20V4"></path>
+                            <path d="m3 8 4-4 4 4"></path>
+                            <path d="M7 4v16"></path>
+                        </svg>
                     </button>
                 </div>
             </div>
@@ -51,17 +76,25 @@
         <!-- Main Content Area -->
         <main class="main-content">
             <header class="main-header">
-                <div class="header-top" style="display:flex; justify-content:space-between; width:100%; align-items:flex-start;">
+                <div class="header-top"
+                    style="display:flex; justify-content:space-between; width:100%; align-items:flex-start;">
                     <div style="display: flex; align-items: center; gap: 16px;">
-                        <button id="sidebar-toggle-btn" style="background:transparent; border:none; color:var(--text-primary); cursor:pointer; padding:4px; display:flex; align-items:center;" title="Toggle Sidebar">
-                            <svg class="sidebar-chevron" width="16" height="16" viewBox="0 0 16 16" fill="currentColor" style="margin-right: 2px; transition: transform 0.2s;">
-                                <path fill-rule="evenodd" clip-rule="evenodd" d="M10.072 11.428 6.643 8l3.429-3.428L9.07 3.5 4.57 8l4.5 4.5 1.002-1.072z"/>
+                        <button id="sidebar-toggle-btn"
+                            style="background:transparent; border:none; color:var(--text-primary); cursor:pointer; padding:4px; display:flex; align-items:center;"
+                            title="Toggle Sidebar">
+                            <svg class="sidebar-chevron" width="16" height="16" viewBox="0 0 16 16" fill="currentColor"
+                                style="margin-right: 2px; transition: transform 0.2s;">
+                                <path fill-rule="evenodd" clip-rule="evenodd"
+                                    d="M10.072 11.428 6.643 8l3.429-3.428L9.07 3.5 4.57 8l4.5 4.5 1.002-1.072z" />
                             </svg>
-                            <svg class="sidebar-icon-expanded" width="22" height="22" viewBox="0 0 16 16" fill="currentColor">
-                                <path fill-rule="evenodd" clip-rule="evenodd" d="M2 3v10h12V3H2zm11 1H6v8h7V4zM3 4v8h2V4H3z"/>
+                            <svg class="sidebar-icon-expanded" width="22" height=\"22\" viewBox="0 0 16 16"
+                                fill="currentColor">
+                                <path fill-rule="evenodd" clip-rule="evenodd"
+                                    d="M2 3v10h12V3H2zm11 1H6v8h7V4zM3 4v8h2V4H3z" />
                             </svg>
-                            <svg class="sidebar-icon-collapsed hidden" width="22" height="22" viewBox="0 0 16 16" fill="currentColor">
-                                <path fill-rule="evenodd" clip-rule="evenodd" d="M2 3v10h12V3H2zm1 9h10V4H3v8z"/>
+                            <svg class="sidebar-icon-collapsed hidden" width="22" height="22" viewBox="0 0 16 16"
+                                fill="currentColor">
+                                <path fill-rule="evenodd" clip-rule="evenodd" d="M2 3v10h12V3H2zm1 9h10V4H3v8z" />
                             </svg>
                         </button>
                         <div class="header-info">
@@ -70,12 +103,14 @@
                         </div>
                     </div>
                 </div>
-                
+
                 <div id="ai-summary-container" class="ai-summary hidden">
-                    <div class="ai-summary-header" id="ai-summary-header" style="display:flex; justify-content:space-between; align-items:center;">
+                    <div class="ai-summary-header" id="ai-summary-header"
+                        style="display:flex; justify-content:space-between; align-items:center;">
                         <h3>Conversation Analysis</h3>
                         <div style="display:flex; align-items:center; gap:16px;">
-                            <button id="summarize-btn" class="btn primary disabled" disabled style="padding: 6px 12px; font-size: 0.85rem; margin: 0;">
+                            <button id="summarize-btn" class="btn primary disabled" disabled
+                                style="padding: 6px 12px; font-size: 0.85rem; margin: 0;">
                                 <span class="sparkle-icon">✨</span> Recompute Analysis
                             </button>
                             <span class="chevron" style="transform: rotate(90deg);">›</span>
@@ -85,7 +120,7 @@
                         <div id="ai-summary-text">Loading...</div>
                     </div>
                 </div>
-                
+
                 <div id="session-stats-container" class="session-stats hidden">
                     <!-- Stats dynamically populated -->
                 </div>
@@ -108,7 +143,7 @@
             </div>
         </main>
     </div>
-    
+
 
 
     <script src="https://cdn.jsdelivr.net/npm/marked/marked.min.js"></script>
@@ -128,16 +163,21 @@
     </div>
 
     <!-- Conversation Popover -->
-    <div id="conv-popover" class="hidden" style="position: fixed; z-index: 1000; background: rgba(15, 23, 42, 0.95); border: 1px solid var(--border-color); border-radius: 8px; padding: 12px; box-shadow: 0 10px 25px rgba(0,0,0,0.5); pointer-events: none; width: 380px; color: var(--text-primary); backdrop-filter: blur(8px); -webkit-backdrop-filter: blur(8px);">
-        <div id="popover-title" style="font-weight: 600; font-size: 0.95rem; margin-bottom: 8px; line-height: 1.4;"></div>
-        <div style="font-size: 0.8rem; color: var(--text-secondary); margin-bottom: 8px; display: flex; align-items: center; gap: 6px;">
+    <div id="conv-popover" class="hidden"
+        style="position: fixed; z-index: 1000; background: rgba(15, 23, 42, 0.95); border: 1px solid var(--border-color); border-radius: 8px; padding: 12px; box-shadow: 0 10px 25px rgba(0,0,0,0.5); pointer-events: none; width: 380px; color: var(--text-primary); backdrop-filter: blur(8px); -webkit-backdrop-filter: blur(8px);">
+        <div id="popover-title" style="font-weight: 600; font-size: 0.95rem; margin-bottom: 8px; line-height: 1.4;">
+        </div>
+        <div
+            style="font-size: 0.8rem; color: var(--text-secondary); margin-bottom: 8px; display: flex; align-items: center; gap: 6px;">
             <span style="opacity: 0.7;">📅</span> <span id="popover-time"></span>
         </div>
-        <div style="font-size: 0.75rem; font-family: var(--font-mono); color: var(--text-secondary); opacity: 0.8; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; width: 100%; box-sizing: border-box;">
+        <div
+            style="font-size: 0.75rem; font-family: var(--font-mono); color: var(--text-secondary); opacity: 0.8; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; width: 100%; box-sizing: border-box;">
             <span style="color: var(--accent-purple);">ID:</span> <span id="popover-id"></span>
         </div>
     </div>
 
     <script type="module" src="app.js?v=2"></script>
 </body>
+
 </html>
