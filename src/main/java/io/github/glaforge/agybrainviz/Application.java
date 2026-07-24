@@ -44,12 +44,16 @@ public class Application {
 
                 Options:
                   -Dmicronaut.server.port=<port>   Run on a custom port (default: 8080)
+                  -Dgemini.model=<model>           Override Gemini model (default: gemini-3.6-flash)
+                  -Dgemini.debug=<true|false>      Enable verbose LLM request/response debug logging
                   -h, --help                       Show this help message and exit
                   -v, --version                    Print the version information and exit
 
                 Environment Variables:
-                  GEMINI_API_KEY                   Required to generate transcript summaries
+                  GEMINI_API_KEY                   Required to generate transcript summaries and use chat
                   MICRONAUT_SERVER_PORT            Overrides the default server port
+                  GEMINI_MODEL                     Overrides the default Gemini model
+                  GEMINI_DEBUG / GEMINI_VERBOSE    Enables verbose LLM request/response debug logging
                 """);
     }
 }
