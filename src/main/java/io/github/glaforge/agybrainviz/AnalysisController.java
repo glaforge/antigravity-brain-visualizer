@@ -19,6 +19,7 @@ import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import dev.langchain4j.model.TokenCountEstimator;
 import dev.langchain4j.model.google.genai.GoogleGenAiTokenCountEstimator;
+import io.micronaut.context.annotation.Value;
 import io.micronaut.http.annotation.Controller;
 import io.micronaut.http.annotation.Get;
 import io.micronaut.http.annotation.PathVariable;
@@ -71,6 +72,9 @@ public class AnalysisController {
 
     private final AnalyzerService analyzerService;
     private final ExecutorService executor;
+
+    @Value("${gemini.model:gemini-3.5-flash}")
+    protected String modelName;
 
     @Inject
     public AnalysisController(
@@ -238,10 +242,11 @@ public class AnalysisController {
                     sequences.add(deduplicateSequence(currentSequence));
                 }
 
+                String resolvedModel = ChatModelFactory.resolveModelName(modelName);
                 TokenCountEstimator estimator = GoogleGenAiTokenCountEstimator
                     .builder()
                     .apiKey(apiKey)
-                    .modelName("gemini-3.5-flash")
+                    .modelName(resolvedModel)
                     .build();
 
                 progressMap.put(id, new ProgressState(5, "Estimating Tokens & Chunking...")); // Phase 1: Estimating

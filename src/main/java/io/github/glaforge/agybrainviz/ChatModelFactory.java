@@ -19,22 +19,36 @@ import dev.langchain4j.model.chat.ChatModel;
 import dev.langchain4j.model.chat.request.ResponseFormat;
 import dev.langchain4j.model.google.genai.GoogleGenAiChatModel;
 import io.micronaut.context.annotation.Factory;
+import io.micronaut.context.annotation.Value;
 import jakarta.inject.Singleton;
 import java.time.Duration;
 
 @Factory
 public class ChatModelFactory {
 
+    @Value("${gemini.model:gemini-3.5-flash}")
+    protected String modelName;
+
+    public static String resolveModelName(String configured) {
+        String sys = System.getProperty("gemini.model");
+        if (sys != null && !sys.isBlank()) return sys.trim();
+        String env = System.getenv("GEMINI_MODEL");
+        if (env != null && !env.isBlank()) return env.trim();
+        if (configured != null && !configured.isBlank()) return configured.trim();
+        return "gemini-3.5-flash";
+    }
+
     @Singleton
     public ChatModel chatModel() {
         String apiKey = System.getenv("GEMINI_API_KEY");
         if (apiKey == null || apiKey.isEmpty()) {
-            apiKey = "dummy";
+            apiKey = System.getProperty("gemini.api.key", "dummy");
         }
+        String resolvedModel = resolveModelName(modelName);
         return GoogleGenAiChatModel
             .builder()
             .apiKey(apiKey)
-            .modelName("gemini-3.5-flash")
+            .modelName(resolvedModel)
             .temperature(0.0)
             .maxRetries(0)
             .timeout(Duration.ofMinutes(2))

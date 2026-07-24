@@ -88,17 +88,36 @@ export GEMINI_API_KEY="your-api-key-here"
 
 Once the server starts, open your web browser and navigate to [http://localhost:8080](http://localhost:8080) to interact with the visualizer.
 
-### Customizing the Port
+## Configuration & Customization
 
-If you need to run the application on a different port, you can override it using the `MICRONAUT_SERVER_PORT` environment variable:
+The visualizer can be configured using environment variables, system properties, or command-line flags.
 
+| Setting | Environment Variable | System Property / Flag | Default Value | Description |
+|---|---|---|---|---|
+| **API Key** | `GEMINI_API_KEY` | `-Dgemini.api.key` | *None (Required)* | Your Google Gemini API key. |
+| **Server Port** | `MICRONAUT_SERVER_PORT` | `-Dmicronaut.server.port` / `--micronaut.server.port` | `8080` | HTTP port for the web interface. |
+| **Gemini Model** | `GEMINI_MODEL` | `-Dgemini.model` / `--gemini.model` | `gemini-3.5-flash` | Gemini model used for session analysis & chat assistant. |
+
+### Configuration Examples
+
+**Via Environment Variables:**
 ```bash
-export MICRONAUT_SERVER_PORT=9090
 export GEMINI_API_KEY="your-api-key-here"
+export MICRONAUT_SERVER_PORT=9090
+export GEMINI_MODEL="gemini-3.6-flash"
 ./gradlew run
 ```
 
-*(If you are running the compiled native executable directly, you can also append `-Dmicronaut.server.port=9090` to the command).*
+**Via Native Executable or System Properties:**
+```bash
+export GEMINI_API_KEY="your-api-key-here"
+./agy-brain-viz -Dmicronaut.server.port=9090 -Dgemini.model=gemini-3.6-flash
+```
+
+**Via Command-Line Arguments:**
+```bash
+./agy-brain-viz --micronaut.server.port=9090 --gemini.model=gemini-3.6-flash
+```
 
 ## Building a Native Executable
 
