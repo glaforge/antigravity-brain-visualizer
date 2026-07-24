@@ -43,6 +43,9 @@ public class ChatModelFactory {
     @Value("${gemini.model:gemini-3.6-flash}")
     protected String modelName;
 
+    @Value("${gemini.debug:false}")
+    protected boolean debugConfig;
+
     public static String resolveModelName(String configured) {
         String sys = System.getProperty("gemini.model");
         if (sys != null && !sys.isBlank()) return sys.trim();
@@ -50,6 +53,20 @@ public class ChatModelFactory {
         if (env != null && !env.isBlank()) return env.trim();
         if (configured != null && !configured.isBlank()) return configured.trim();
         return "gemini-3.6-flash";
+    }
+
+    public static boolean resolveDebug(Boolean configured) {
+        String sys = System.getProperty("gemini.debug");
+        if (sys != null && !sys.isBlank()) return Boolean.parseBoolean(sys.trim());
+        sys = System.getProperty("gemini.verbose");
+        if (sys != null && !sys.isBlank()) return Boolean.parseBoolean(sys.trim());
+
+        String env = System.getenv("GEMINI_DEBUG");
+        if (env != null && !env.isBlank()) return Boolean.parseBoolean(env.trim());
+        env = System.getenv("GEMINI_VERBOSE");
+        if (env != null && !env.isBlank()) return Boolean.parseBoolean(env.trim());
+
+        return configured != null ? configured : false;
     }
 
     private static synchronized void logToFile(String content) {
@@ -68,6 +85,7 @@ public class ChatModelFactory {
             apiKey = System.getProperty("gemini.api.key", "dummy");
         }
         String resolvedModel = resolveModelName(modelName);
+        boolean verboseDebug = resolveDebug(debugConfig);
 
         ChatModelListener loggerListener = new ChatModelListener() {
             @Override
@@ -163,7 +181,7 @@ public class ChatModelFactory {
             }
         };
 
-        return GoogleGenAiChatModel
+        var builder = GoogleGenAiChatModel
             .builder()
             .apiKey(apiKey)
             .modelName(resolvedModel)
@@ -171,9 +189,14 @@ public class ChatModelFactory {
             .maxRetries(0)
             .timeout(Duration.ofMinutes(2))
             .responseFormat(ResponseFormat.JSON)
-            .logRequests(true)
-            .logResponses(true)
-            .listeners(List.of(loggerListener))
-            .build();
+            .logRequests(verboseDebug)
+            .logResponses(verboseDebug);
+
+        if (verboseDebug) {
+            LOG.info("Gemini verbose logging is ENABLED");
+            builder.listeners(List.of(loggerListener));
+        }
+
+        return builder.build();
     }
 }

@@ -96,7 +96,8 @@ The visualizer can be configured using environment variables, system properties,
 |---|---|---|---|---|
 | **API Key** | `GEMINI_API_KEY` | `-Dgemini.api.key` | *None (Required)* | Your Google Gemini API key. |
 | **Server Port** | `MICRONAUT_SERVER_PORT` | `-Dmicronaut.server.port` / `--micronaut.server.port` | `8080` | HTTP port for the web interface. |
-| **Gemini Model** | `GEMINI_MODEL` | `-Dgemini.model` / `--gemini.model` | `gemini-3.5-flash` | Gemini model used for session analysis & chat assistant. |
+| **Gemini Model** | `GEMINI_MODEL` | `-Dgemini.model` / `--gemini.model` | `gemini-3.6-flash` | Gemini model used for session analysis & chat assistant. |
+| **Verbose Debug Logging** | `GEMINI_DEBUG` / `GEMINI_VERBOSE` | `-Dgemini.debug` / `--gemini.debug` | `false` | Enable detailed LLM request & response prompt logging. |
 
 ### Configuration Examples
 

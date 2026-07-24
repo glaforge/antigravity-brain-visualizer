@@ -8,19 +8,10 @@
         </encoder>
     </appender>
 
-    <appender name="FILE" class="ch.qos.logback.core.FileAppender">
-        <file>gemini-debug.log</file>
-        <append>true</append>
-        <encoder>
-            <pattern>%d{yyyy-MM-dd HH:mm:ss.SSS} [%thread] %-5level %logger{36} - %msg%n</pattern>
-        </encoder>
-    </appender>
-
     <logger name="io.micronaut.context.DefaultBeanContext" level="ERROR" />
-    <logger name="dev.langchain4j" level="DEBUG" />
+    <logger name="dev.langchain4j" level="INFO" />
 
     <root level="info">
         <appender-ref ref="STDOUT" />
-        <appender-ref ref="FILE" />
     </root>
 </configuration>
