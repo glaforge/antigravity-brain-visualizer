@@ -6,6 +6,13 @@
           "io.github.glaforge.agybrainviz.AnalyzerService"
         ]
       }
+    },
+    {
+      "type": {
+        "proxy": [
+          "io.github.glaforge.agybrainviz.ChatService"
+        ]
+      }
     }
   ]
 }

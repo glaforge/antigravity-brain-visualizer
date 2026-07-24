@@ -17,6 +17,7 @@ package io.github.glaforge.agybrainviz;
 
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
+import io.micronaut.core.annotation.ReflectiveAccess;
 import io.micronaut.http.annotation.Body;
 import io.micronaut.http.annotation.Controller;
 import io.micronaut.http.annotation.Post;
@@ -46,9 +47,11 @@ public class ChatController {
         return Paths.get(System.getProperty("user.home"), ".gemini", flavor, "brain");
     }
 
+    @ReflectiveAccess
     @Serdeable
     public record ChatScope(String type, String targetId) {}
 
+    @ReflectiveAccess
     @Serdeable
     public record ChatRequest(
         String flavor,
@@ -57,6 +60,7 @@ public class ChatController {
         String message
     ) {}
 
+    @ReflectiveAccess
     @Serdeable
     public record ChatResponse(String answer, String contextScope) {}
 

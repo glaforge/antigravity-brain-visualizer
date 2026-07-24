@@ -40,6 +40,13 @@ This project provides an interactive web UI for inspecting Antigravity AI agent 
 - Do not expose sensitive endpoints or tokens.
 - When searching for Java dependencies, use the Maven Central repository's REST API (documented here: https://central.sonatype.org/search/rest-api-guide/) and parse its `json` output.
 
+### GraalVM Native Image Requirements
+- **LangChain4j `@AiService` Proxies**:
+  - Whenever creating or modifying a LangChain4j interface annotated with `@AiService` (e.g., `ChatService`, `AnalyzerService`), you MUST register its full interface name under `"reflection"` -> `"proxy"` in `src/main/resources/META-INF/native-image/io.github.glaforge/agybrainviz/reachability-metadata.json`.
+  - If omitted, GraalVM Native Image builds will fail to generate runtime dynamic proxies for the `@AiService` bean, causing Micronaut to skip initializing any dependent `@Controller` (resulting in `404 Not Found` responses).
+- **Reflection on DTO Records**:
+  - Annotate all DTO records used for REST payloads or LangChain4j structured outputs with `@ReflectiveAccess` (`io.micronaut.core.annotation.ReflectiveAccess`) and `@Serdeable`.
+
 ### JavaScript (Frontend)
 - Use modern Vanilla JS (ES6+).
 - Organize code into modules (`import`/`export`) in `src/main/resources/public/modules/`.
