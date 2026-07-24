@@ -20,6 +20,7 @@ import com.fasterxml.jackson.databind.ObjectMapper;
 import dev.langchain4j.model.TokenCountEstimator;
 import dev.langchain4j.model.google.genai.GoogleGenAiTokenCountEstimator;
 import io.micronaut.context.annotation.Value;
+import io.micronaut.core.annotation.ReflectiveAccess;
 import io.micronaut.http.annotation.Controller;
 import io.micronaut.http.annotation.Get;
 import io.micronaut.http.annotation.PathVariable;
@@ -55,6 +56,7 @@ public class AnalysisController {
     private static final int MAX_TOKENS_PER_CHUNK = 100_000;
     private static final Map<String, ProgressState> progressMap = new ConcurrentHashMap<>();
 
+    @ReflectiveAccess
     @Serdeable
     public record ProgressState(int progress, String phase) {}
 
@@ -67,6 +69,7 @@ public class AnalysisController {
         return new ProgressResponse(state.phase(), state.progress());
     }
 
+    @ReflectiveAccess
     @Serdeable
     public record ProgressResponse(String phase, int progress) {}
 
