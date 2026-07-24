@@ -28,7 +28,7 @@ Additionally, it leverages Google's Gemini LLMs to automatically generate compre
 *   **Search & Filtering**: Includes a text search input to find sessions, and a dropdown to filter sessions by agent type (CLI, IDE, Agent).
 *   **Sorting & Refreshing**: Provides toggle controls to sort sessions chronologically and a refresh button to load new sessions.
 *   **Session Metadata**: Hovering over a session displays an overview popover containing metadata such as step counts and session IDs.
-*   **Adjustable Layout**: The sidebar features a drag handle to resize its width or collapse it entirely.
+*   **Adjustable Layout**: The sidebar features a drag handle to resize its width, a toggle button, and a global keyboard shortcut (`Cmd+B` / `Ctrl+B`) to collapse or expand it.
 
 **Timeline & Navigation**
 *   **Proportional Timeline**: Displays a visual bar representing the elapsed wall-clock duration of the session, mapping active sequences and idle gaps proportionally.
@@ -44,17 +44,25 @@ Additionally, it leverages Google's Gemini LLMs to automatically generate compre
 *   **Step Filtering**: Toggles to show or hide specific step types (User Queries, Tool Calls, Errors, Model Responses). Empty sequence containers are automatically hidden when filters are applied.
 *   **In-Transcript Search**: A find-in-page text search utility to navigate through text matches within the active transcript.
 
-**AI Summarization**
-*   **Backend Integration**: The Micronaut backend integrates with Google Gemini via LangChain4j.
+**AI Summarization & Interactive Assistant**
+*   **Backend Integration**: The Micronaut backend integrates with Google Gemini (`gemini-3.5-flash`) via LangChain4j.
 *   **Session Summaries**: Analyzes raw JSONL transcripts via LLM to generate a high-level overview of the agent's actions and outcomes.
-*   **Summary Panel**: The generated summary is injected into a collapsible panel at the top of the transcript view.
+*   **Interactive Session Assistant**: A sliding right drawer (`Cmd+K` / `Ctrl+K`) to chat with an AI assistant about the active session, specific step failures, or sequence execution details.
+*   **Contextual Triggers & Scope Chips**: Click `💬 Ask Chat` on sequence headers, error step cards, or the summary section to automatically pin focused context chips (`📍 Context: Sequence #3`).
+*   **Agent Skill Generator**: Generates custom agent guardrails/skills strictly adhering to the [Agent Skills Specification](https://agentskills.io/specification) with YAML frontmatter and one-click `📋 Copy Skill Template` buttons.
+*   **Chat History Management**: Includes a `🗑️ Clear` button to clear drawer history, with automatic resets when switching between sessions.
+
+**Keyboard Shortcuts**
+*   `Cmd+B` / `Ctrl+B`: Toggle left session selection sidebar (show / hide).
+*   `Cmd+Shift+A` / `Ctrl+Shift+A`: Collapse or expand the Conversation Analysis panel.
+*   `Cmd+K` / `Ctrl+K`: Open or close the Session Assistant chat drawer.
 
 ## Technology Stack & Implementation
 This project prioritizes a lightweight, high-performance, and maintainable architecture:
 
-- **Backend**: Built with [Micronaut](https://micronaut.io/) (Java). It serves the frontend static assets and provides native REST APIs to securely read and parse the local file-system transcripts.
-- **AI Integration**: Powered by [LangChain4j](https://github.com/langchain4j/langchain4j) connecting directly to [Google Gemini models](https://docs.langchain4j.dev/integrations/language-models/google-genai/). It uses chunking and recursive consolidation to process large transcript files that exceed standard token limits.
-- **Frontend**: A zero-build Vanilla JavaScript, HTML, and CSS single-page application. It avoids heavy framework overhead, relying instead on standard browser DOM APIs, customized CSS grid/flexbox layouts, and minimal dependencies (`marked.js` and `highlight.js`) for efficient rendering and responsiveness.
+- **Backend**: Built with [Micronaut](https://micronaut.io/) (Java). It serves the frontend static assets and provides native REST APIs to securely read and parse local filesystem transcripts.
+- **AI Integration**: Powered by [LangChain4j](https://github.com/langchain4j/langchain4j) connecting directly to [Google Gemini models](https://docs.langchain4j.dev/integrations/language-models/google-genai/) (`gemini-3.5-flash`). It uses chunking and recursive consolidation for session summarization, alongside contextual session Q&A and skill generation.
+- **Frontend**: A zero-build Vanilla JavaScript, HTML, and CSS single-page application. It avoids heavy framework overhead, relying instead on standard browser DOM APIs, customized CSS grid/flexbox layouts, and minimal dependencies (`marked.js` and `highlight.js`) for Markdown rendering and code syntax highlighting.
 
 ## Installation
 

@@ -14,6 +14,8 @@
  * limitations under the License.
  */
 export const state = {
+  currentConversationId: null,
+  currentFlavor: "antigravity-cli",
   activeFilters: {
     userQueries: false,
     toolsCalled: false,

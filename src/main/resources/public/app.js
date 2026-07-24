@@ -18,12 +18,25 @@ import { renderTranscript } from "./modules/timeline.js";
 import { renderStats } from "./modules/stats.js";
 import { triggerAnalysis } from "./modules/analysis.js";
 import { initUI } from "./modules/ui.js";
+import { initChat, openDrawer, clearHistory } from "./modules/chat.js";
 
 let allConversations = [];
 let sortDescending = true;
 
 document.addEventListener("DOMContentLoaded", async () => {
   initUI();
+  initChat();
+
+  const analysisChatBtn = document.getElementById("analysis-chat-btn");
+  if (analysisChatBtn) {
+    analysisChatBtn.addEventListener("click", () => {
+      openDrawer({
+        type: "analysis",
+        targetId: "summary",
+        label: "Session Analysis",
+      });
+    });
+  }
 
   const flavorSelect = document.getElementById("flavor-select");
   await loadFlavors(flavorSelect);
@@ -34,31 +47,42 @@ document.addEventListener("DOMContentLoaded", async () => {
   }
 
   const sidebarToggleBtn = document.getElementById("sidebar-toggle-btn");
-  if (sidebarToggleBtn) {
-    sidebarToggleBtn.addEventListener("click", () => {
-      const sidebar = document.querySelector(".sidebar");
-      sidebar.classList.toggle("collapsed");
+  function toggleSidebar() {
+    const sidebar = document.querySelector(".sidebar");
+    if (!sidebar || !sidebarToggleBtn) return;
+    sidebar.classList.toggle("collapsed");
 
-      const expandedIcon = sidebarToggleBtn.querySelector(
-        ".sidebar-icon-expanded"
-      );
-      const collapsedIcon = sidebarToggleBtn.querySelector(
-        ".sidebar-icon-collapsed"
-      );
+    const expandedIcon = sidebarToggleBtn.querySelector(
+      ".sidebar-icon-expanded"
+    );
+    const collapsedIcon = sidebarToggleBtn.querySelector(
+      ".sidebar-icon-collapsed"
+    );
 
-      if (sidebar.classList.contains("collapsed")) {
-        expandedIcon.classList.add("hidden");
-        collapsedIcon.classList.remove("hidden");
-        sidebarToggleBtn.querySelector(".sidebar-chevron").style.transform =
-          "rotate(180deg)";
-      } else {
-        expandedIcon.classList.remove("hidden");
-        collapsedIcon.classList.add("hidden");
-        sidebarToggleBtn.querySelector(".sidebar-chevron").style.transform =
-          "rotate(0deg)";
-      }
-    });
+    if (sidebar.classList.contains("collapsed")) {
+      expandedIcon.classList.add("hidden");
+      collapsedIcon.classList.remove("hidden");
+      sidebarToggleBtn.querySelector(".sidebar-chevron").style.transform =
+        "rotate(180deg)";
+    } else {
+      expandedIcon.classList.remove("hidden");
+      collapsedIcon.classList.add("hidden");
+      sidebarToggleBtn.querySelector(".sidebar-chevron").style.transform =
+        "rotate(0deg)";
+    }
   }
+
+  if (sidebarToggleBtn) {
+    sidebarToggleBtn.addEventListener("click", toggleSidebar);
+  }
+
+  // Global hotkey Cmd+B or Ctrl+B to toggle sidebar
+  document.addEventListener("keydown", (e) => {
+    if ((e.metaKey || e.ctrlKey) && e.key.toLowerCase() === "b") {
+      e.preventDefault();
+      toggleSidebar();
+    }
+  });
 
   const resizer = document.getElementById("sidebar-resizer");
   const sidebar = document.querySelector(".sidebar");
@@ -101,6 +125,8 @@ document.addEventListener("DOMContentLoaded", async () => {
 
   flavorSelect.addEventListener("change", () => {
     localStorage.setItem("agy-flavor", flavorSelect.value);
+    state.currentFlavor = flavorSelect.value;
+    state.currentConversationId = null;
     loadConversations();
     document.getElementById("transcript-container").innerHTML =
       '<div class="empty-state">Select a session from the sidebar to view its transcript.</div>';
@@ -113,19 +139,33 @@ document.addEventListener("DOMContentLoaded", async () => {
     document.getElementById("ai-summary-container").classList.add("hidden");
   });
 
+  function toggleAnalysis() {
+    const summaryHeader = document.getElementById("ai-summary-header");
+    const container = document.getElementById("ai-summary-container");
+    if (!summaryHeader || !container || container.classList.contains("hidden"))
+      return;
+    const content = document.getElementById("ai-summary-content");
+    const chevron = summaryHeader.querySelector(".chevron");
+    content.classList.toggle("collapsed");
+    if (content.classList.contains("collapsed")) {
+      chevron.style.transform = "rotate(0deg)";
+    } else {
+      chevron.style.transform = "rotate(90deg)";
+    }
+  }
+
   const summaryHeader = document.getElementById("ai-summary-header");
   if (summaryHeader) {
-    summaryHeader.addEventListener("click", () => {
-      const content = document.getElementById("ai-summary-content");
-      const chevron = summaryHeader.querySelector(".chevron");
-      content.classList.toggle("collapsed");
-      if (content.classList.contains("collapsed")) {
-        chevron.style.transform = "rotate(0deg)";
-      } else {
-        chevron.style.transform = "rotate(90deg)";
-      }
-    });
+    summaryHeader.addEventListener("click", toggleAnalysis);
   }
+
+  // Global hotkey Cmd+Shift+A or Ctrl+Shift+A to toggle Conversation Analysis
+  document.addEventListener("keydown", (e) => {
+    if ((e.metaKey || e.ctrlKey) && e.shiftKey && e.key.toLowerCase() === "a") {
+      e.preventDefault();
+      toggleAnalysis();
+    }
+  });
 
   document
     .getElementById("summarize-btn")
@@ -185,19 +225,19 @@ document.addEventListener("DOMContentLoaded", async () => {
 });
 
 async function loadFlavors(selectElement) {
-    try {
-        const res = await fetch(`/api/brain/flavors`);
-        const flavors = await res.json();
-        selectElement.innerHTML = "";
-        flavors.forEach(f => {
-            const opt = document.createElement("option");
-            opt.value = f;
-            opt.text = f;
-            selectElement.appendChild(opt);
-        });
-    } catch (e) {
-        console.error("Failed to load flavors", e);
-    }
+  try {
+    const res = await fetch(`/api/brain/flavors`);
+    const flavors = await res.json();
+    selectElement.innerHTML = "";
+    flavors.forEach((f) => {
+      const opt = document.createElement("option");
+      opt.value = f;
+      opt.text = f;
+      selectElement.appendChild(opt);
+    });
+  } catch (e) {
+    console.error("Failed to load flavors", e);
+  }
 }
 
 async function loadConversations() {
@@ -342,6 +382,12 @@ function renderConversationsList() {
 }
 
 async function selectConversation(id, element) {
+  state.currentConversationId = id;
+  state.currentFlavor =
+    document.getElementById("flavor-select")?.value || "antigravity-cli";
+
+  clearHistory();
+
   document
     .querySelectorAll(".conv-item")
     .forEach((el) => el.classList.remove("active"));

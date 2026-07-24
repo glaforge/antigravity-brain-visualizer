@@ -81,13 +81,13 @@
                     <div style="display: flex; align-items: center; gap: 16px;">
                         <button id="sidebar-toggle-btn"
                             style="background:transparent; border:none; color:var(--text-primary); cursor:pointer; padding:4px; display:flex; align-items:center;"
-                            title="Toggle Sidebar">
+                            title="Toggle Sidebar (Cmd+B)">
                             <svg class="sidebar-chevron" width="16" height="16" viewBox="0 0 16 16" fill="currentColor"
                                 style="margin-right: 2px; transition: transform 0.2s;">
                                 <path fill-rule="evenodd" clip-rule="evenodd"
                                     d="M10.072 11.428 6.643 8l3.429-3.428L9.07 3.5 4.57 8l4.5 4.5 1.002-1.072z" />
                             </svg>
-                            <svg class="sidebar-icon-expanded" width="22" height=\"22\" viewBox="0 0 16 16"
+                            <svg class="sidebar-icon-expanded" width="22" height="22" viewBox="0 0 16 16"
                                 fill="currentColor">
                                 <path fill-rule="evenodd" clip-rule="evenodd"
                                     d="M2 3v10h12V3H2zm11 1H6v8h7V4zM3 4v8h2V4H3z" />
@@ -102,13 +102,19 @@
                             <div id="current-session-id" class="session-id-subtitle"></div>
                         </div>
                     </div>
+                    <button id="chat-toggle-btn" class="btn primary" style="display:flex; align-items:center; gap:6px; font-size:0.85rem; padding:6px 14px;" title="Toggle Chat Assistant (Cmd+K)">
+                        <span>💬</span> Chat Assistant
+                    </button>
                 </div>
 
                 <div id="ai-summary-container" class="ai-summary hidden">
                     <div class="ai-summary-header" id="ai-summary-header"
-                        style="display:flex; justify-content:space-between; align-items:center;">
+                        style="display:flex; justify-content:space-between; align-items:center; cursor:pointer;" title="Toggle Conversation Analysis (Cmd+Shift+A)">
                         <h3>Conversation Analysis</h3>
-                        <div style="display:flex; align-items:center; gap:16px;">
+                        <div style="display:flex; align-items:center; gap:12px;">
+                            <button id="analysis-chat-btn" class="btn secondary" style="padding: 6px 12px; font-size: 0.85rem; margin: 0; background: rgba(59, 130, 246, 0.15); border: 1px solid rgba(59, 130, 246, 0.4); color: #60a5fa;" title="Ask questions about this analysis">
+                                💬 Discuss Analysis
+                            </button>
                             <button id="summarize-btn" class="btn primary disabled" disabled
                                 style="padding: 6px 12px; font-size: 0.85rem; margin: 0;">
                                 <span class="sparkle-icon">✨</span> Recompute Analysis
@@ -142,6 +148,54 @@
                 </div>
             </div>
         </main>
+
+        <!-- Sliding Chat Drawer -->
+        <aside id="chat-drawer" class="chat-drawer collapsed">
+            <div class="chat-header">
+                <div style="display:flex; align-items:center; gap:8px;">
+                    <span style="font-size:1.2rem;">🧠</span>
+                    <span style="font-weight:600; font-size:1rem;">Session Assistant</span>
+                </div>
+                <div style="display:flex; align-items:center; gap:8px;">
+                    <button id="chat-clear-history-btn" class="chat-clear-btn" title="Clear chat history">
+                        🗑️ Clear
+                    </button>
+                    <button id="chat-close-btn" class="icon-btn" style="background:transparent; border:none; color:var(--text-secondary); cursor:pointer; font-size:1.1rem;" title="Close Chat">✕</button>
+                </div>
+            </div>
+
+            <!-- Active Context Chip -->
+            <div id="chat-context-chip-container" class="chat-context-chip-container" style="display:none;">
+                <span class="chat-context-chip">
+                    <span style="margin-right:4px;">📍</span> Context: <strong id="chat-context-label" style="margin-left:4px;">Global Session</strong>
+                    <button id="chat-clear-context-btn" class="chip-close-btn" title="Clear context (revert to global session)">✕</button>
+                </span>
+            </div>
+
+            <!-- Messages Container -->
+            <div id="chat-messages" class="chat-messages">
+                <div class="chat-message assistant">
+                    <div class="chat-message-content">
+                        Hello! I am your Antigravity Session Assistant. Ask me anything about this session, specific sequences, step failures, or ask me to draft custom skills!
+                    </div>
+                </div>
+            </div>
+
+            <!-- Presets / Quick Prompts -->
+            <div class="chat-presets">
+                <button class="chat-preset-btn" data-prompt="Why did this step fail?">Why did this fail?</button>
+                <button class="chat-preset-btn" data-prompt="Why did this sequence take so many steps?">Why so many steps?</button>
+                <button class="chat-preset-btn" data-prompt="Could we create a skill to prevent this issue?">✨ Draft Skill</button>
+            </div>
+
+            <!-- Input Footer -->
+            <div class="chat-input-container">
+                <textarea id="chat-input" placeholder="Ask a question about this session... (Shift+Enter for newline)"></textarea>
+                <button id="chat-send-btn" class="btn primary">
+                    Send
+                </button>
+            </div>
+        </aside></main>
     </div>
 
 

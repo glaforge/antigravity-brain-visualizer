@@ -55,12 +55,18 @@ public class BrainController {
                 // Restricting: only "antigravity", "antigravity-cli", "antigravity-ide" or "jetski"
                 // that actually contain a "brain" folder
                 .filter(name -> {
-                    boolean matches = name.equals("antigravity") || 
-                                      name.equals("antigravity-cli") || 
-                                      name.equals("antigravity-ide") || 
-                                      name.equals("jetski");
+                    boolean matches =
+                        name.equals("antigravity") ||
+                        name.equals("antigravity-cli") ||
+                        name.equals("antigravity-ide") ||
+                        name.equals("jetski");
                     if (!matches) return false;
-                    Path brainPath = Paths.get(System.getProperty("user.home"), ".gemini", name, "brain");
+                    Path brainPath = Paths.get(
+                        System.getProperty("user.home"),
+                        ".gemini",
+                        name,
+                        "brain"
+                    );
                     return Files.exists(brainPath);
                 })
                 .collect(Collectors.toList());

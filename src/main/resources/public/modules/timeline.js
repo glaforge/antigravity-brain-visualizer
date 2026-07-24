@@ -14,6 +14,7 @@
  * limitations under the License.
  */
 import { state, escapeHtml, syntaxHighlight, formatTime } from "./utils.js";
+import { openDrawer } from "./chat.js";
 
 export function renderTranscript(steps, container) {
   state.activeFilters = {
@@ -123,13 +124,34 @@ export function renderTranscript(steps, container) {
                 <span class="badge ${badgeClass}">${sourceStr}</span>
                 <span style="font-family:var(--font-mono); font-weight:500; font-size:0.9rem;">${typeStr}</span>
             </div>
-            <div class="step-meta ${badgeClass}">${
-      step.created_at
-        ? `<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"></circle><polyline points="12 6 12 12 16 14"></polyline></svg> ` +
-          formatTime(step.created_at, true)
-        : ""
-    }</div>
+            <div class="step-meta ${badgeClass}" style="display:flex; align-items:center; gap:6px;">
+              ${
+                step.created_at
+                  ? `<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"></circle><polyline points="12 6 12 12 16 14"></polyline></svg> ` +
+                    formatTime(step.created_at, true)
+                  : ""
+              }
+            </div>
         `;
+
+    if (isErrorStep) {
+      const stepMeta = header.querySelector(".step-meta");
+      if (stepMeta) {
+        const stepChatBtn = document.createElement("button");
+        stepChatBtn.className = "step-chat-btn";
+        stepChatBtn.innerHTML = `💬 Ask Chat`;
+        stepChatBtn.title = `Ask assistant about step #${index + 1} failure`;
+        stepChatBtn.addEventListener("click", (e) => {
+          e.stopPropagation();
+          openDrawer({
+            type: "step",
+            targetId: `${index + 1}`,
+            label: `Step #${index + 1} (${typeStr})`,
+          });
+        });
+        stepMeta.appendChild(stepChatBtn);
+      }
+    }
 
     card.appendChild(header);
 
@@ -530,6 +552,20 @@ export function renderTranscript(steps, container) {
         <span class="seq-chevron" style="display:inline-block; transition: transform 0.2s; transform: rotate(90deg); font-size: 1.2rem; line-height: 1;">›</span>
         <span>Sequence ${sequenceCounter++}${durationText}</span>
       `;
+      const currentSeqNum = sequenceCounter - 1;
+      const seqChatBtn = document.createElement("button");
+      seqChatBtn.className = "seq-chat-btn";
+      seqChatBtn.innerHTML = `💬 Ask Chat`;
+      seqChatBtn.title = `Ask assistant about Sequence #${currentSeqNum}`;
+      seqChatBtn.addEventListener("click", (e) => {
+        e.stopPropagation();
+        openDrawer({
+          type: "sequence",
+          targetId: `${currentSeqNum}`,
+          label: `Sequence #${currentSeqNum}`,
+        });
+      });
+      sequenceHeader.appendChild(seqChatBtn);
       currentSequenceContainer.appendChild(sequenceHeader);
 
       currentSequenceContent = document.createElement("div");
