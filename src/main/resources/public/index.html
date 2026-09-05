@@ -5,9 +5,10 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Antigravity Brain Visualizer</title>
-    <link rel="stylesheet" href="style.css">
     <link rel="stylesheet"
         href="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.9.0/styles/tokyo-night-dark.min.css">
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/diff2html/bundles/css/diff2html.min.css">
+    <link rel="stylesheet" href="style.css">
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
     <link
@@ -130,6 +131,23 @@
                 <div id="session-stats-container" class="session-stats hidden">
                     <!-- Stats dynamically populated -->
                 </div>
+
+                <div class="view-tabs-container" id="view-tabs-container" style="display: none;">
+                    <button id="tab-transcript-btn" class="view-tab-btn tab-btn active" title="View conversation timeline and execution steps">
+                        <span class="tab-icon">📜</span>
+                        <span class="tab-label">Transcript</span>
+                    </button>
+                    <button id="tab-artifacts-btn" class="view-tab-btn tab-btn" title="View generated artifacts and git snapshot diffs">
+                        <span class="tab-icon">📦</span>
+                        <span class="tab-label">Artifacts &amp; Snapshots</span>
+                        <span id="artifacts-counter" class="counter-badge">0</span>
+                    </button>
+                    <button id="tab-messages-btn" class="view-tab-btn tab-btn" title="View subagent messages and communications">
+                        <span class="tab-icon">💬</span>
+                        <span class="tab-label">Subagent Messages</span>
+                        <span id="messages-counter" class="counter-badge">0</span>
+                    </button>
+                </div>
             </header>
 
             <div style="flex: 1; position: relative; display: flex; min-height: 0;">
@@ -139,6 +157,12 @@
                         <p>Select a conversation from the sidebar to visualize the agent's memory and workflow.</p>
                     </div>
                     <!-- Timeline items dynamically populated -->
+                </div>
+                <div class="artifacts-container hidden" id="artifacts-container" style="flex: 1; overflow-y: auto; padding: 24px;">
+                    <!-- Artifacts dynamically populated -->
+                </div>
+                <div class="messages-container hidden" id="messages-container" style="flex: 1; overflow-y: auto; padding: 24px;">
+                    <!-- Messages dynamically populated -->
                 </div>
                 <!-- Timeline Scrubber -->
                 <div id="timeline-track">
@@ -202,6 +226,7 @@
 
     <script src="https://cdn.jsdelivr.net/npm/marked/marked.min.js"></script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.9.0/highlight.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/diff2html/bundles/js/diff2html-ui.min.js"></script>
 
     <!-- File Preview Modal -->
     <div id="file-modal" class="modal hidden">

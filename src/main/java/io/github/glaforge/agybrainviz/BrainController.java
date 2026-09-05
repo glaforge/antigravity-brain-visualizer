@@ -25,6 +25,7 @@ import io.micronaut.scheduling.TaskExecutors;
 import io.micronaut.scheduling.annotation.ExecuteOn;
 import java.io.BufferedReader;
 import java.io.IOException;
+import java.io.InputStreamReader;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.Paths;
@@ -206,5 +207,176 @@ public class BrainController {
         } catch (IOException e) {
             return HttpResponse.serverError("Error reading file: " + e.getMessage());
         }
+    }
+
+    @ExecuteOn(TaskExecutors.IO)
+    @Get(value = "/conversations/{id}/artifacts", produces = "application/json")
+    public List<Map<String, Object>> getArtifacts(
+        @PathVariable String id,
+        @QueryValue Optional<String> flavor
+    ) {
+        Path brainPath = getBrainPath(flavor.orElse("antigravity-cli")).resolve(id);
+        if (!Files.exists(brainPath)) return List.of();
+
+        List<Map<String, Object>> artifacts = new ArrayList<>();
+        ObjectMapper mapper = new ObjectMapper();
+        try (Stream<Path> files = Files.list(brainPath)) {
+            files
+                .filter(p -> Files.isRegularFile(p) && p.getFileName().toString().endsWith(".md"))
+                .forEach(p -> {
+                    String filename = p.getFileName().toString();
+                    Map<String, Object> art = new HashMap<>();
+                    art.put("filename", filename);
+                    art.put("path", p.toAbsolutePath().toString());
+                    try {
+                        art.put("size", Files.size(p));
+                        art.put("updatedAt", Files.getLastModifiedTime(p).toMillis());
+                    } catch (IOException e) {
+                        art.put("size", 0L);
+                        art.put("updatedAt", 0L);
+                    }
+
+                    // Look for metadata file: <filename>.metadata.json or <filename_without_ext>.metadata.json
+                    Path metaPath = brainPath.resolve(filename + ".metadata.json");
+                    if (!Files.exists(metaPath)) {
+                        String base = filename.substring(0, filename.lastIndexOf('.'));
+                        metaPath = brainPath.resolve(base + ".metadata.json");
+                    }
+                    if (Files.exists(metaPath)) {
+                        try {
+                            Map<String, Object> meta = mapper.readValue(
+                                Files.readString(metaPath),
+                                Map.class
+                            );
+                            art.put("metadata", meta);
+                        } catch (Exception e) {}
+                    }
+                    artifacts.add(art);
+                });
+        } catch (IOException e) {}
+
+        artifacts.sort((a, b) -> Long.compare((Long) b.get("updatedAt"), (Long) a.get("updatedAt"))
+        );
+        return artifacts;
+    }
+
+    @ExecuteOn(TaskExecutors.IO)
+    @Get(value = "/conversations/{id}/snapshots", produces = "application/json")
+    public List<Map<String, String>> getSnapshots(
+        @PathVariable String id,
+        @QueryValue Optional<String> flavor
+    ) {
+        Path convPath = getBrainPath(flavor.orElse("antigravity-cli")).resolve(id);
+        Path gitDir = convPath.resolve(".git");
+        if (!Files.exists(gitDir)) return List.of();
+
+        List<Map<String, String>> snapshots = new ArrayList<>();
+        try {
+            Process process = new ProcessBuilder(
+                "git",
+                "-C",
+                convPath.toAbsolutePath().toString(),
+                "log",
+                "--pretty=format:%H|%an|%ad|%s",
+                "--date=iso",
+                "-n",
+                "50"
+            )
+                .redirectErrorStream(true)
+                .start();
+
+            try (
+                BufferedReader reader = new BufferedReader(
+                    new InputStreamReader(process.getInputStream())
+                )
+            ) {
+                String line;
+                while ((line = reader.readLine()) != null) {
+                    String[] parts = line.split("\\|", 4);
+                    if (parts.length == 4) {
+                        Map<String, String> snap = new HashMap<>();
+                        snap.put("hash", parts[0]);
+                        snap.put("author", parts[1]);
+                        snap.put("date", parts[2]);
+                        snap.put("message", parts[3]);
+                        snapshots.add(snap);
+                    }
+                }
+            }
+            process.waitFor();
+        } catch (Exception e) {}
+        return snapshots;
+    }
+
+    @ExecuteOn(TaskExecutors.IO)
+    @Get(value = "/conversations/{id}/diff", produces = "text/plain")
+    public HttpResponse<String> getDiff(
+        @PathVariable String id,
+        @QueryValue String commit,
+        @QueryValue Optional<String> flavor
+    ) {
+        Path convPath = getBrainPath(flavor.orElse("antigravity-cli")).resolve(id);
+        Path gitDir = convPath.resolve(".git");
+        if (!Files.exists(gitDir)) {
+            return HttpResponse.notFound("No git repository found for conversation");
+        }
+
+        try {
+            Process process = new ProcessBuilder(
+                "git",
+                "-C",
+                convPath.toAbsolutePath().toString(),
+                "show",
+                commit
+            )
+                .redirectErrorStream(true)
+                .start();
+
+            String diffOutput = new String(process.getInputStream().readAllBytes());
+            process.waitFor();
+            return HttpResponse.ok(diffOutput);
+        } catch (Exception e) {
+            return HttpResponse.serverError("Error generating diff: " + e.getMessage());
+        }
+    }
+
+    @ExecuteOn(TaskExecutors.IO)
+    @Get(value = "/conversations/{id}/messages", produces = "application/json")
+    public List<Map<String, Object>> getMessages(
+        @PathVariable String id,
+        @QueryValue Optional<String> flavor
+    ) {
+        Path messagesDir = getBrainPath(flavor.orElse("antigravity-cli"))
+            .resolve(id)
+            .resolve(".system_generated/messages");
+        if (!Files.exists(messagesDir)) return List.of();
+
+        List<Map<String, Object>> messages = new ArrayList<>();
+        ObjectMapper mapper = new ObjectMapper();
+        try (Stream<Path> files = Files.list(messagesDir)) {
+            files
+                .filter(p -> {
+                    String name = p.getFileName().toString();
+                    return (
+                        Files.isRegularFile(p) &&
+                        name.endsWith(".json") &&
+                        !name.equals("read.json") &&
+                        !name.equals("cursor.json")
+                    );
+                })
+                .forEach(p -> {
+                    try {
+                        Map<String, Object> msg = mapper.readValue(Files.readString(p), Map.class);
+                        messages.add(msg);
+                    } catch (Exception e) {}
+                });
+        } catch (IOException e) {}
+
+        messages.sort((a, b) -> {
+            String tsA = (String) a.getOrDefault("timestamp", "");
+            String tsB = (String) b.getOrDefault("timestamp", "");
+            return tsB.compareTo(tsA);
+        });
+        return messages;
     }
 }

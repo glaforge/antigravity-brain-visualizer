@@ -15,6 +15,7 @@
  */
 package io.github.glaforge.agybrainviz;
 
+import com.fasterxml.jackson.annotation.JsonProperty;
 import dev.langchain4j.model.output.structured.Description;
 import io.micronaut.core.annotation.ReflectiveAccess;
 import io.micronaut.serde.annotation.Serdeable;
@@ -22,6 +23,11 @@ import io.micronaut.serde.annotation.Serdeable;
 @ReflectiveAccess
 @Serdeable
 public record Issue(
-    @Description("Short summary of the error. MAX 1 SENTENCE. DO NOT REPEAT WORDS.") String error,
-    @Description("How it was fixed. MAX 1 SENTENCE. DO NOT REPEAT WORDS.") String circumvention
+    @JsonProperty(required = true)
+    @Description("Summary of the error, obstacle, or failure encountered")
+    String error,
+
+    @JsonProperty(required = true)
+    @Description("How the issue was resolved or circumvented")
+    String circumvention
 ) {}

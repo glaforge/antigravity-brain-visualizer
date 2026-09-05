@@ -76,7 +76,7 @@ public class AnalysisController {
     private final AnalyzerService analyzerService;
     private final ExecutorService executor;
 
-    @Value("${gemini.model:gemini-3.5-flash}")
+    @Value("${gemini.model:gemini-3.8-flash}")
     protected String modelName;
 
     @Inject

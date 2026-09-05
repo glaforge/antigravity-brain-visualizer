@@ -38,6 +38,11 @@ export function renderStats(steps) {
   let errorFrequencies = {};
   let segments = [];
   let currentSegment = null;
+
+  // Token estimation (Gemini 3.8 Flash heuristic ~4 chars per token)
+  let inputTokens = 0;
+  let thinkingTokens = 0;
+  let outputTokens = 0;
   const sortedSteps = [...steps]
     .filter((s) => s.created_at)
     .sort(
@@ -135,6 +140,28 @@ export function renderStats(steps) {
       }
 
       errorFrequencies[errMsg] = (errorFrequencies[errMsg] || 0) + 1;
+    }
+
+    // Token estimation accumulation (Gemini ~4 chars/token heuristic)
+    if (step.source === "USER_EXPLICIT" || step.type === "USER_INPUT") {
+      inputTokens += Math.ceil((step.content || "").length / 4);
+    } else if (
+      step.source === "MODEL" &&
+      (step.type === "PLANNER_RESPONSE" || step.type === "MESSAGE")
+    ) {
+      if (step.content) {
+        outputTokens += Math.ceil(step.content.length / 4);
+      }
+      if (step.tool_calls && step.tool_calls.length > 0) {
+        step.tool_calls.forEach((tc) => {
+          outputTokens += Math.ceil(JSON.stringify(tc.args || {}).length / 4);
+        });
+      }
+    } else if (step.content) {
+      inputTokens += Math.ceil(step.content.length / 4);
+    }
+    if (step.thinking) {
+      thinkingTokens += Math.ceil(step.thinking.length / 4);
     }
   });
 
@@ -303,6 +330,79 @@ export function renderStats(steps) {
   }
   errorsChartHtml += "</div>";
 
+  const totalTokens = inputTokens + thinkingTokens + outputTokens;
+  // Gemini 3.8 Flash Pricing: $0.10 / 1M input tokens, $0.40 / 1M output tokens (including thinking)
+  const estimatedCost =
+    (inputTokens * 0.1 + (outputTokens + thinkingTokens) * 0.4) / 1000000;
+  const formatTokens = (t) => {
+    if (t >= 1000000) return (t / 1000000).toFixed(2) + "M";
+    if (t >= 1000) return (t / 1000).toFixed(1) + "k";
+    return t.toLocaleString();
+  };
+  const costStr =
+    estimatedCost < 0.005 ? "< $0.01" : `$${estimatedCost.toFixed(3)}`;
+
+  let tokensChartHtml =
+    '<div class="tools-chart" id="tokens-chart" style="display: none; margin-top: 24px; padding-top: 16px; border-top: 1px solid var(--border-color);">';
+  tokensChartHtml +=
+    '<div style="display:flex; justify-content:space-between; align-items:center; margin-bottom: 16px;">' +
+    '<div style="font-size: 0.75rem; font-weight: 700; color: #38bdf8; letter-spacing: 0.05em; text-transform: uppercase;">Estimated Token Consumption (Gemini 3.8 Flash)</div>' +
+    `<div style="font-size: 0.8rem; color: var(--text-secondary);">Est. Cost: <strong style="color:#10b981;">${costStr}</strong> ($0.10 / $0.40 per 1M)</div>` +
+    "</div>";
+
+  if (totalTokens === 0) {
+    tokensChartHtml += '<div class="stat-sub">No tokens recorded</div>';
+  } else {
+    const inputPct = Math.max((inputTokens / totalTokens) * 100, 1).toFixed(1);
+    const thinkingPct = Math.max(
+      (thinkingTokens / totalTokens) * 100,
+      1
+    ).toFixed(1);
+    const outputPct = Math.max((outputTokens / totalTokens) * 100, 1).toFixed(
+      1
+    );
+
+    tokensChartHtml += `
+      <div style="height: 14px; width: 100%; display: flex; border-radius: 6px; overflow: hidden; background: rgba(30, 41, 59, 0.5); margin-bottom: 14px; border: 1px solid rgba(255,255,255,0.05);">
+        <div style="width: ${inputPct}%; background: #38bdf8;" title="Input: ${formatTokens(
+      inputTokens
+    )} (${inputPct}%)"></div>
+        <div style="width: ${thinkingPct}%; background: #a78bfa;" title="Thinking: ${formatTokens(
+      thinkingTokens
+    )} (${thinkingPct}%)"></div>
+        <div style="width: ${outputPct}%; background: #34d399;" title="Output: ${formatTokens(
+      outputTokens
+    )} (${outputPct}%)"></div>
+      </div>
+      <div style="display: flex; gap: 24px; flex-wrap: wrap; font-size: 0.85rem; color: var(--text-secondary);">
+        <div style="display: flex; align-items: center; gap: 8px;">
+          <span style="width: 10px; height: 10px; border-radius: 50%; background: #38bdf8; display: inline-block;"></span>
+          <span>Input: <strong style="color:var(--text-primary);">${formatTokens(
+            inputTokens
+          )}</strong> (${inputPct}%)</span>
+        </div>
+        <div style="display: flex; align-items: center; gap: 8px;">
+          <span style="width: 10px; height: 10px; border-radius: 50%; background: #a78bfa; display: inline-block;"></span>
+          <span>Thinking: <strong style="color:var(--text-primary);">${formatTokens(
+            thinkingTokens
+          )}</strong> (${thinkingPct}%)</span>
+        </div>
+        <div style="display: flex; align-items: center; gap: 8px;">
+          <span style="width: 10px; height: 10px; border-radius: 50%; background: #34d399; display: inline-block;"></span>
+          <span>Output: <strong style="color:var(--text-primary);">${formatTokens(
+            outputTokens
+          )}</strong> (${outputPct}%)</span>
+        </div>
+        <div style="display: flex; align-items: center; gap: 8px; margin-left: auto;">
+          <span>Total: <strong style="color:var(--text-primary);">${formatTokens(
+            totalTokens
+          )}</strong> tokens</span>
+        </div>
+      </div>
+    `;
+  }
+  tokensChartHtml += "</div>";
+
   container.innerHTML = `
         <div class="stats-grid">
             <div class="stat-card" id="errors-stat-card" style="cursor: ${
@@ -317,7 +417,7 @@ export function renderStats(steps) {
                 <div class="stat-value" style="color: ${
                   errors === 0 ? "var(--success)" : "var(--error)"
                 };">
-                    ${errors === 0 ? "Succeeded" : "Issues Detected"}
+                  ${errors === 0 ? "Succeeded" : "Issues Detected"}
                 </div>
                 <div class="stat-sub">${errors} errors during execution</div>
             </div>
@@ -355,10 +455,21 @@ export function renderStats(steps) {
                 <div class="stat-value">${modelResponses}</div>
                 <div class="stat-sub">Agent answers</div>
             </div>
+            <div class="stat-card" id="tokens-stat-card" style="cursor: pointer;">
+                <div class="stat-label" style="display:flex; justify-content:space-between; align-items:center;">
+                    EST. TOKENS
+                    <span id="tokens-chevron" class="chevron">›</span>
+                </div>
+                <div class="stat-value" style="color: #38bdf8;">${formatTokens(
+                  totalTokens
+                )}</div>
+                <div class="stat-sub">~${costStr} · 3.8 Flash</div>
+            </div>
         </div>
         ${toolsChartHtml}
         ${errorsChartHtml}
         ${durationChartHtml}
+        ${tokensChartHtml}
     `;
 
   const userCard = document.getElementById("user-queries-stat-card");
@@ -448,6 +559,23 @@ export function renderStats(steps) {
         chart.style.display = "none";
         chevron.style.transform = "rotate(0deg)";
         durationCard.style.borderColor = "var(--border-color)";
+      }
+    });
+  }
+
+  const tokensCard = document.getElementById("tokens-stat-card");
+  if (tokensCard) {
+    tokensCard.addEventListener("click", () => {
+      const chart = document.getElementById("tokens-chart");
+      const chevron = document.getElementById("tokens-chevron");
+      if (chart.style.display === "none") {
+        chart.style.display = "block";
+        chevron.style.transform = "rotate(90deg)";
+        tokensCard.style.borderColor = "#38bdf8";
+      } else {
+        chart.style.display = "none";
+        chevron.style.transform = "rotate(0deg)";
+        tokensCard.style.borderColor = "var(--border-color)";
       }
     });
   }

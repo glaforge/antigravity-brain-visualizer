@@ -16,6 +16,146 @@
 import { state, escapeHtml, syntaxHighlight, formatTime } from "./utils.js";
 import { openDrawer } from "./chat.js";
 
+const STANDARD_HTML_TAGS = new Set([
+  "a",
+  "abbr",
+  "address",
+  "area",
+  "article",
+  "aside",
+  "audio",
+  "b",
+  "base",
+  "bdi",
+  "bdo",
+  "blockquote",
+  "body",
+  "br",
+  "button",
+  "canvas",
+  "caption",
+  "cite",
+  "code",
+  "col",
+  "colgroup",
+  "data",
+  "datalist",
+  "dd",
+  "del",
+  "details",
+  "dfn",
+  "dialog",
+  "div",
+  "dl",
+  "dt",
+  "em",
+  "embed",
+  "fieldset",
+  "figcaption",
+  "figure",
+  "footer",
+  "form",
+  "h1",
+  "h2",
+  "h3",
+  "h4",
+  "h5",
+  "h6",
+  "head",
+  "header",
+  "hgroup",
+  "hr",
+  "html",
+  "i",
+  "iframe",
+  "img",
+  "input",
+  "ins",
+  "kbd",
+  "label",
+  "legend",
+  "li",
+  "link",
+  "main",
+  "map",
+  "mark",
+  "menu",
+  "meta",
+  "meter",
+  "nav",
+  "noscript",
+  "object",
+  "ol",
+  "optgroup",
+  "option",
+  "output",
+  "p",
+  "picture",
+  "pre",
+  "progress",
+  "q",
+  "rp",
+  "rt",
+  "ruby",
+  "s",
+  "samp",
+  "script",
+  "search",
+  "section",
+  "select",
+  "slot",
+  "small",
+  "source",
+  "span",
+  "strong",
+  "style",
+  "sub",
+  "summary",
+  "sup",
+  "svg",
+  "table",
+  "tbody",
+  "td",
+  "template",
+  "textarea",
+  "tfoot",
+  "th",
+  "thead",
+  "time",
+  "title",
+  "tr",
+  "track",
+  "u",
+  "ul",
+  "var",
+  "video",
+  "wbr",
+]);
+
+function unwrapPromptXmlTags(content) {
+  if (!content || typeof content !== "string" || !content.includes("<")) {
+    return content;
+  }
+  let cleaned = content;
+  let prev;
+  let depth = 0;
+  do {
+    prev = cleaned;
+    cleaned = cleaned.replace(
+      /<([a-zA-Z0-9_-]+)(?:\s+[^>]*)?>([\s\S]*?)<\/\1>/g,
+      (match, tagName, inner) => {
+        if (!STANDARD_HTML_TAGS.has(tagName.toLowerCase())) {
+          return inner.trim();
+        }
+        return match;
+      }
+    );
+    depth++;
+  } while (cleaned !== prev && depth < 5);
+
+  return cleaned.trim();
+}
+
 export function renderTranscript(steps, container) {
   state.activeFilters = {
     userQueries: false,
@@ -72,18 +212,48 @@ export function renderTranscript(steps, container) {
     card.style.animationDelay = `${Math.min(index * 0.015, 0.3)}s`;
 
     let badgeClass = "system";
-    if (step.source === "USER_EXPLICIT") {
+    let icon = "";
+    if (step.source === "USER_EXPLICIT" || step.type === "USER_INPUT") {
       badgeClass = "user";
+      icon = "👤 ";
+    } else if (step.type === "READ_URL_CONTENT") {
+      badgeClass = "url";
+      icon = "🌐 ";
+    } else if (
+      step.type === "INVOKE_SUBAGENT" ||
+      step.type === "BROWSER_SUBAGENT"
+    ) {
+      badgeClass = "subagent";
+      icon = "🤖 ";
+    } else if (step.type === "GENERATE_IMAGE") {
+      badgeClass = "image";
+      icon = "🖼️ ";
+    } else if (step.type === "ASK_QUESTION") {
+      badgeClass = "question";
+      icon = "❓ ";
+    } else if (step.type === "MCP_TOOL") {
+      badgeClass = "mcp";
+      icon = "🔌 ";
+    } else if (step.type === "RUN_COMMAND") {
+      badgeClass = "tool";
+      icon = "⚡ ";
+    } else if (step.type === "SEARCH_WEB") {
+      badgeClass = "tool";
+      icon = "🔍 ";
+    } else if (step.type === "VIEW_FILE") {
+      badgeClass = "tool";
+      icon = "📄 ";
     } else if (step.source === "MODEL") {
       if (
         step.type &&
         step.type !== "PLANNER_RESPONSE" &&
-        step.type !== "MESSAGE" &&
-        step.type !== "ASK_QUESTION"
+        step.type !== "MESSAGE"
       ) {
         badgeClass = "tool";
+        icon = "⚙️ ";
       } else {
         badgeClass = "model";
+        icon = "🧠 ";
       }
     } else if (
       step.type &&
@@ -92,6 +262,7 @@ export function renderTranscript(steps, container) {
         step.type.includes("COMMAND"))
     ) {
       badgeClass = "tool";
+      icon = "⚙️ ";
     }
 
     card.dataset.isUser = isUserStep ? "true" : "false";
@@ -122,7 +293,7 @@ export function renderTranscript(steps, container) {
                     : '<span style="width:16px;"></span>'
                 }
                 <span class="badge ${badgeClass}">${sourceStr}</span>
-                <span style="font-family:var(--font-mono); font-weight:500; font-size:0.9rem;">${typeStr}</span>
+                <span style="font-family:var(--font-mono); font-weight:500; font-size:0.9rem;">${icon}${typeStr}</span>
             </div>
             <div class="step-meta ${badgeClass}" style="display:flex; align-items:center; gap:6px;">
               ${
@@ -226,37 +397,45 @@ export function renderTranscript(steps, container) {
               const preText = processedContent
                 .substring(lastIndex, match.index)
                 .trim();
-              if (preText)
+              if (preText) {
+                const cleanPre = unwrapPromptXmlTags(preText);
                 htmlParts += `<div class="user-request-block">${marked.parse(
-                  preText
+                  cleanPre
                 )}</div>`;
+              }
             }
             const tagName = match[1];
             const tagContent = match[2].trim();
             if (tagName === "USER_REQUEST") {
+              const cleanUserContent = unwrapPromptXmlTags(tagContent);
               htmlParts += `<div class="user-request-block">${marked.parse(
-                tagContent
+                cleanUserContent
               )}</div>`;
             } else {
               const niceName = tagName
                 .split("_")
                 .map((w) => w.charAt(0) + w.slice(1).toLowerCase())
                 .join(" ");
+              const cleanContext = unwrapPromptXmlTags(tagContent);
               htmlParts += `<div class="system-context-block"><strong>${niceName}</strong><div class="system-context-content">${marked.parse(
-                tagContent
+                cleanContext
               )}</div></div>`;
             }
             lastIndex = tagRegex.lastIndex;
           }
           if (lastIndex < processedContent.length) {
             const postText = processedContent.substring(lastIndex).trim();
-            if (postText)
+            if (postText) {
+              const cleanPost = unwrapPromptXmlTags(postText);
               htmlParts += `<div class="user-request-block">${marked.parse(
-                postText
+                cleanPost
               )}</div>`;
+            }
           }
           formattedContent = `<div class="markdown-body">${
-            hasTags ? htmlParts : marked.parse(processedContent)
+            hasTags
+              ? htmlParts
+              : marked.parse(unwrapPromptXmlTags(processedContent))
           }</div>`;
         } else {
           let contentText = processedContent;
@@ -422,8 +601,69 @@ export function renderTranscript(steps, container) {
           .replace(/^(?:Output|Stdout|Stderr):\s*\n?/gm, "")
           .trim();
 
+        // 1. Detect Background Tasks
+        let bgTaskHtml = "";
+        const bgTaskRegex =
+          /Task id ["']?([^\s"'\n]+(?:\/task-\d+)?)["']? (?:is running|finished|completed)|task id:\s*["']?([^\s"'\n]+\/task-\d+)["']?/i;
+        const bgTaskMatch = contentText.match(bgTaskRegex);
+        const logRegex =
+          /(?:Task logs are available at:|Log:)\s*(?:file:\/\/)?([^\s\n]+\/\.system_generated\/tasks\/task-[^\s\n]+\.log)/i;
+        const logMatch = contentText.match(logRegex);
+
+        if (bgTaskMatch || logMatch) {
+          const rawId = bgTaskMatch ? bgTaskMatch[1] || bgTaskMatch[2] : "task";
+          const taskId = rawId.includes("/") ? rawId.split("/")[1] : rawId;
+          const logPath = logMatch ? logMatch[1] : "";
+          bgTaskHtml = `
+            <div class="bg-task-card" style="margin: 8px 0 12px; padding: 10px 14px; background: rgba(59, 130, 246, 0.1); border: 1px solid rgba(59, 130, 246, 0.3); border-radius: 8px; display: flex; align-items: center; justify-content: space-between; gap: 12px;">
+              <div style="display:flex; align-items:center; gap:10px;">
+                <span style="font-size:1.2rem;">⚡</span>
+                <div>
+                  <div style="font-size:0.85rem; font-weight:600; color:#60a5fa;">Background Task: <span style="font-family:var(--font-mono); font-weight:500;">${escapeHtml(
+                    taskId
+                  )}</span></div>
+                  <div style="font-size:0.75rem; color:var(--text-secondary);">Asynchronous task execution</div>
+                </div>
+              </div>
+              ${
+                logPath
+                  ? `<button class="view-task-log-btn btn secondary" data-log-path="${escapeHtml(
+                      logPath
+                    )}" style="padding: 4px 10px; font-size: 0.8rem; margin: 0; display:flex; align-items:center; gap:4px;">📋 View Task Log</button>`
+                  : ""
+              }
+            </div>
+          `;
+        }
+
+        // 2. Detect Spooled Content Files
+        let spooledHtml = "";
+        const spooledRegex =
+          /(?:saved to|spooled to):\s*(?:file:\/\/)?([^\s\n]+\/\.system_generated\/steps\/\d+\/([a-zA-Z0-9_.-]+))/i;
+        const spooledMatch = contentText.match(spooledRegex);
+        if (spooledMatch) {
+          const spooledFullPath = spooledMatch[1];
+          const spooledFileName = spooledMatch[2];
+          spooledHtml = `
+            <div class="spooled-banner" style="margin: 8px 0 12px; padding: 8px 12px; background: rgba(16, 185, 129, 0.1); border: 1px solid rgba(16, 185, 129, 0.3); border-radius: 8px; display: flex; align-items: center; justify-content: space-between; gap: 12px;">
+              <div style="display:flex; align-items:center; gap:8px;">
+                <span style="font-size:1.1rem;">📄</span>
+                <span style="font-size:0.85rem; color:var(--text-secondary);">Full content spooled to <code style="color:#34d399; font-weight:600;">${escapeHtml(
+                  spooledFileName
+                )}</code></span>
+              </div>
+              <button class="spooled-preview-btn btn secondary" data-spooled-path="${escapeHtml(
+                spooledFullPath
+              )}" style="padding: 4px 10px; font-size: 0.8rem; margin: 0; display:flex; align-items:center; gap:4px;">
+                👁 Inline Preview
+              </button>
+            </div>
+            <div class="spooled-preview-container hidden" style="margin: 8px 0 12px; padding: 14px; background: rgba(15, 23, 42, 0.7); border: 1px solid rgba(148, 163, 184, 0.2); border-radius: 8px; max-height: 450px; overflow-y: auto;"></div>
+          `;
+        }
+
         if (!contentText) {
-          formattedContent = metaHtml;
+          formattedContent = metaHtml + bgTaskHtml + spooledHtml;
         } else {
           formattedContent = escapeHtml(contentText);
           try {
@@ -435,7 +675,10 @@ export function renderTranscript(steps, container) {
             }
           } catch (e) {}
           formattedContent =
-            metaHtml + `<div class="code-block">${formattedContent}</div>`;
+            metaHtml +
+            bgTaskHtml +
+            spooledHtml +
+            `<div class="code-block">${formattedContent}</div>`;
         }
       }
       html += formattedContent;
@@ -606,6 +849,86 @@ export function renderTranscript(steps, container) {
       window.timelineStart + window.timelineTotalMs;
   }
   container.appendChild(bottomMarker);
+
+  // Event delegation for spooled content previews and task log views
+  container.addEventListener("click", async (e) => {
+    const taskLogBtn = e.target.closest(".view-task-log-btn");
+    if (taskLogBtn) {
+      e.stopPropagation();
+      const logPath = taskLogBtn.dataset.logPath;
+      const modal = document.getElementById("file-modal");
+      const modalTitle = document.getElementById("file-modal-title");
+      const modalContent = document.getElementById("file-modal-content");
+      if (modal && modalTitle && modalContent) {
+        modalTitle.innerText = logPath;
+        modalContent.innerText = "Loading task log...";
+        modal.classList.remove("hidden");
+        try {
+          const res = await fetch(
+            `/api/brain/file?path=${encodeURIComponent(logPath)}`
+          );
+          if (!res.ok) throw new Error("Log file not found or empty");
+          const logText = await res.text();
+          modalContent.innerText = logText;
+          hljs.highlightElement(modalContent);
+        } catch (err) {
+          modalContent.innerText = err.message;
+        }
+      }
+      return;
+    }
+
+    const spooledBtn = e.target.closest(".spooled-preview-btn");
+    if (spooledBtn) {
+      e.stopPropagation();
+      const spooledPath = spooledBtn.dataset.spooledPath;
+      const stepBody = spooledBtn.closest(".step-body");
+      const previewContainer = stepBody?.querySelector(
+        ".spooled-preview-container"
+      );
+      if (previewContainer) {
+        const isHidden = previewContainer.classList.contains("hidden");
+        if (isHidden) {
+          previewContainer.classList.remove("hidden");
+          spooledBtn.innerText = "🙈 Hide Preview";
+          if (!previewContainer.dataset.loaded) {
+            previewContainer.innerHTML =
+              '<div class="loading-state">Loading spooled file...</div>';
+            try {
+              const res = await fetch(
+                `/api/brain/file?path=${encodeURIComponent(spooledPath)}`
+              );
+              if (!res.ok) throw new Error("Failed to load spooled file");
+              const text = await res.text();
+              previewContainer.dataset.loaded = "true";
+              if (spooledPath.endsWith(".md")) {
+                previewContainer.innerHTML = `<div class="markdown-body">${marked.parse(
+                  text
+                )}</div>`;
+                previewContainer
+                  .querySelectorAll("pre code")
+                  .forEach((el) => hljs.highlightElement(el));
+              } else {
+                previewContainer.innerHTML = `<pre class="code-block"><code>${escapeHtml(
+                  text
+                )}</code></pre>`;
+                previewContainer
+                  .querySelectorAll("pre code")
+                  .forEach((el) => hljs.highlightElement(el));
+              }
+            } catch (err) {
+              previewContainer.innerHTML = `<div style="color:var(--error);">${escapeHtml(
+                err.message
+              )}</div>`;
+            }
+          }
+        } else {
+          previewContainer.classList.add("hidden");
+          spooledBtn.innerText = "👁 Inline Preview";
+        }
+      }
+    }
+  });
 
   window.dispatchEvent(new Event("transcriptLoaded"));
 }

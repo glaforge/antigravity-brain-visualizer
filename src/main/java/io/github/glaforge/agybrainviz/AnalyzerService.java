@@ -23,20 +23,50 @@ import io.micronaut.langchain4j.annotation.AiService;
 @AiService
 public interface AnalyzerService {
     @SystemMessage("""
-			You are an expert at analyzing JSONL transcripts of Antigravity CLI sessions.
+			You are an expert at analyzing JSONL transcripts of Antigravity sessions.
 			Your job is to extract the core insights, actions, issues, and actionable recommendations
-			(e.g. missing CLI tools, helpful skills to create, or AGENTS.md advice) into a structured format.
+			(e.g. missing tools, helpful skills to create, or AGENTS.md advice) into a structured JSON format.
+
+			Your output MUST be a valid JSON object strictly containing ALL of the following fields:
+			{
+			  "shortTitle": "Concise title summarizing session (max 50 chars)",
+			  "flow": [
+			    "Description of major step 1",
+			    "Description of major step 2"
+			  ],
+			  "agentActions": [
+			    {
+			      "action": "view_file",
+			      "description": "Short explanation of the action"
+			    }
+			  ],
+			  "issues": [
+			    {
+			      "error": "Error or obstacle encountered",
+			      "circumvention": "How the agent resolved or bypassed the issue"
+			    }
+			  ],
+			  "recommendations": [
+			    "Suggested tip, custom skill, or AGENTS.md rule"
+			  ],
+			  "summary": "Coherent overview explaining the overall session outcome."
+			}
+
+			CRITICAL RULES:
+			- Do NOT omit any fields. All 6 fields ("shortTitle", "flow", "agentActions", "issues", "recommendations", "summary") are mandatory in the JSON response.
+			- If there are no issues or recommendations, return an empty array [] for that field.
+			- Always extract the agent's key actions into "agentActions" and the chronological sequence into "flow".
+			- Keep the summary focused, natural, and concise. Do NOT add repetitive word chains or artificial filler.
 			""")
     @UserMessage("""
-			Please analyze the following JSONL transcript of an Antigravity CLI session.
+			Please analyze the following JSONL transcript of an Antigravity session.
 
-			CRITICAL INSTRUCTIONS:
-			- NEVER fall into an infinite repetition loop. Do NOT repeat the exact same phrase or word over and over.
-			- Be succinct and concise in your lists. Keep the overall size of the output compact.
-			- Keep description texts short. Each issue or action description MUST be 1 or 2 sentences maximum.
-			- DO NOT output Base64. DO NOT output infinitely repeating words or phrases. If you find yourself repeating, STOP immediately.
-			- Your summary MUST BE SHORT. No more than 3 paragraphs. Do NOT embed raw logs, code, or large quotes in the summary.
-			- Output MUST be exclusively in English. No other languages are permitted.
+			INSTRUCTIONS:
+			- Output MUST be a complete JSON object containing all 6 fields: shortTitle, flow, agentActions, issues, recommendations, summary.
+			- Do not leave flow or agentActions empty if actions occurred in the transcript.
+			- Be succinct and concise in your descriptions.
+			- Output MUST be exclusively in English.
+			- Avoid redundant repetition or repetitive filler words in the summary.
 
 			Transcript:
 			{{transcript}}
@@ -49,15 +79,13 @@ public interface AnalyzerService {
 			{{previousAnalysis}}
 
 			Please update and enhance this analysis using the next section of the transcript below.
-			CRITICAL INSTRUCTIONS:
+			INSTRUCTIONS:
+			- Output MUST be valid JSON strictly adhering to the schema.
 			- Incorporate the new context into the existing analysis.
-			- NEVER fall into an infinite repetition loop. Do NOT repeat the exact same phrase or word over and over.
-			- Merge new elements concisely. If an issue or action is already documented or very similar, do NOT add it again.
-			- Be succinct and concise in your lists. Keep the overall size of the output compact.
-			- DO NOT output Base64. DO NOT output infinitely repeating words or phrases. If you find yourself repeating, STOP immediately.
-			- Your summary MUST BE SHORT. No more than 3 paragraphs. Do NOT embed raw logs, code, or large quotes in the summary.
-			- Output MUST be exclusively in English. No other languages are permitted.
-			- Update the `summary` to reflect the accumulated narrative from the very beginning of the session up to this chunk.
+			- Merge new elements concisely without duplicating existing items.
+			- Update the `summary` to reflect the accumulated narrative from the beginning of the session up to this chunk.
+			- Output MUST be exclusively in English.
+			- Avoid redundant repetition or repetitive filler words in the summary.
 
 			New Transcript Chunk:
 			{{transcript}}
@@ -73,13 +101,12 @@ public interface AnalyzerService {
 			{{combinedSummariesJson}}
 
 			Please consolidate them into a single, unified, and comprehensive structured analysis.
-			CRITICAL INSTRUCTIONS:
-			- Merge items thoughtfully. Avoid duplicating issues or actions.
-			- NEVER fall into an infinite repetition loop.
-			- Ensure your summary provides an overarching narrative of the entire session.
-			- Your summary MUST BE SHORT. No more than 3 paragraphs.
-			- DO NOT output Base64 or raw logs.
-			- Output MUST be exclusively in English. No other languages are permitted.
+			INSTRUCTIONS:
+			- Output MUST be valid JSON strictly adhering to the schema.
+			- Merge items thoughtfully, avoiding duplicate issues or actions.
+			- Ensure your summary provides a clear overarching narrative of the entire session.
+			- Output MUST be exclusively in English.
+			- Avoid redundant repetition or repetitive filler words in the summary.
 			""")
     AnalysisResponse consolidateAnalysis(@V("combinedSummariesJson") String combinedSummariesJson);
 }

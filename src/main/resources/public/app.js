@@ -19,6 +19,8 @@ import { renderStats } from "./modules/stats.js";
 import { triggerAnalysis } from "./modules/analysis.js";
 import { initUI } from "./modules/ui.js";
 import { initChat, openDrawer, clearHistory } from "./modules/chat.js";
+import { renderArtifactsView } from "./modules/artifacts.js";
+import { renderMessagesView } from "./modules/messages.js";
 
 let allConversations = [];
 let sortDescending = true;
@@ -26,6 +28,64 @@ let sortDescending = true;
 document.addEventListener("DOMContentLoaded", async () => {
   initUI();
   initChat();
+
+  // View Navigation Tabs
+  const transcriptBtn = document.getElementById("tab-transcript-btn");
+  const artifactsBtn = document.getElementById("tab-artifacts-btn");
+  const messagesBtn = document.getElementById("tab-messages-btn");
+
+  const transcriptView = document.getElementById("transcript-container");
+  const timelineTrack = document.getElementById("timeline-track");
+  const artifactsView = document.getElementById("artifacts-container");
+  const messagesView = document.getElementById("messages-container");
+
+  function switchView(activeBtn, viewToShow) {
+    [transcriptBtn, artifactsBtn, messagesBtn].forEach((btn) => {
+      if (btn) btn.classList.remove("active");
+    });
+    if (activeBtn) activeBtn.classList.add("active");
+
+    [transcriptView, artifactsView, messagesView].forEach((view) => {
+      if (view) view.classList.add("hidden");
+    });
+    if (timelineTrack) {
+      timelineTrack.style.display =
+        viewToShow === transcriptView ? "block" : "none";
+    }
+    if (viewToShow) viewToShow.classList.remove("hidden");
+  }
+
+  if (transcriptBtn) {
+    transcriptBtn.addEventListener("click", () => {
+      switchView(transcriptBtn, transcriptView);
+    });
+  }
+
+  if (artifactsBtn) {
+    artifactsBtn.addEventListener("click", () => {
+      switchView(artifactsBtn, artifactsView);
+      if (state.currentConversationId) {
+        renderArtifactsView(
+          artifactsView,
+          state.currentConversationId,
+          state.currentFlavor
+        );
+      }
+    });
+  }
+
+  if (messagesBtn) {
+    messagesBtn.addEventListener("click", () => {
+      switchView(messagesBtn, messagesView);
+      if (state.currentConversationId) {
+        renderMessagesView(
+          messagesView,
+          state.currentConversationId,
+          state.currentFlavor
+        );
+      }
+    });
+  }
 
   const analysisChatBtn = document.getElementById("analysis-chat-btn");
   if (analysisChatBtn) {
@@ -137,6 +197,9 @@ document.addEventListener("DOMContentLoaded", async () => {
     document.getElementById("current-session-id").innerText = "";
     document.getElementById("summarize-btn").disabled = true;
     document.getElementById("ai-summary-container").classList.add("hidden");
+    const tabsContainer = document.getElementById("view-tabs-container");
+    if (tabsContainer) tabsContainer.style.display = "none";
+    switchView(transcriptBtn, transcriptView);
   });
 
   function toggleAnalysis() {
@@ -439,6 +502,39 @@ async function selectConversation(id, element) {
 
     renderTranscript(steps, container);
     renderStats(steps);
+
+    // Show view navigation tabs
+    const tabsContainer = document.getElementById("view-tabs-container");
+    if (tabsContainer) {
+      tabsContainer.style.display = "flex";
+    }
+
+    // Refresh artifacts & messages counters
+    fetch(`/api/brain/conversations/${id}/artifacts?flavor=${flavor}`)
+      .then((r) => (r.ok ? r.json() : []))
+      .then((arts) => {
+        const badge = document.getElementById("artifacts-counter");
+        if (badge) badge.innerText = `${arts.length}`;
+      })
+      .catch(() => {});
+
+    fetch(`/api/brain/conversations/${id}/messages?flavor=${flavor}`)
+      .then((r) => (r.ok ? r.json() : []))
+      .then((msgs) => {
+        const badge = document.getElementById("messages-counter");
+        if (badge) badge.innerText = `${msgs.length}`;
+      })
+      .catch(() => {});
+
+    // If currently on artifacts or messages tab, render immediately
+    const currentTab = document.querySelector(".view-tab-btn.active")?.id;
+    if (currentTab === "tab-artifacts-btn") {
+      const artContainer = document.getElementById("artifacts-container");
+      renderArtifactsView(artContainer, id, state.currentFlavor);
+    } else if (currentTab === "tab-messages-btn") {
+      const msgContainer = document.getElementById("messages-container");
+      renderMessagesView(msgContainer, id, state.currentFlavor);
+    }
   } catch (e) {
     container.innerHTML =
       '<div class="loading-state" style="text-align:center; color:red;">Failed to load transcript.</div>';

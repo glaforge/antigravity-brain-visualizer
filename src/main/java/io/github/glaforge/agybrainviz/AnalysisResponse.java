@@ -15,6 +15,7 @@
  */
 package io.github.glaforge.agybrainviz;
 
+import com.fasterxml.jackson.annotation.JsonProperty;
 import dev.langchain4j.model.output.structured.Description;
 import io.micronaut.core.annotation.ReflectiveAccess;
 import io.micronaut.serde.annotation.Serdeable;
@@ -23,22 +24,29 @@ import java.util.List;
 @ReflectiveAccess
 @Serdeable
 public record AnalysisResponse(
-    @Description("A very short title (max 50 chars) summarizing the session") String shortTitle,
+    @JsonProperty(required = true)
+    @Description("A concise title (max 50 chars) summarizing the session")
+    String shortTitle,
 
-    @Description(
-        "List of short strings representing the flow. MAX 1 SENTENCE PER ITEM. DO NOT REPEAT WORDS."
-    )
+    @JsonProperty(required = true)
+    @Description("Chronological sequence of key steps or milestones in the session flow")
     List<String> flow,
 
-    @Description("List of agent actions taken during the session") List<AgentAction> agentActions,
+    @JsonProperty(required = true)
+    @Description("Key actions performed by the agent during the session")
+    List<AgentAction> agentActions,
 
-    @Description("List of issues or errors encountered and how they were circumvented")
+    @JsonProperty(required = true)
+    @Description("Issues or obstacles encountered and how they were resolved or circumvented")
     List<Issue> issues,
 
+    @JsonProperty(required = true)
     @Description(
-        "List of potential improvements (e.g., missing CLI tools, skills to create, or advice for AGENTS.md) that could help future sessions go faster or circumvent errors"
+        "Actionable recommendations (e.g. missing tools, skills, or AGENTS.md rules) to improve future sessions"
     )
     List<String> recommendations,
 
-    @Description("A short paragraph explaining the overall outcome") String summary
+    @JsonProperty(required = true)
+    @Description("A coherent summary explaining the overall session outcome")
+    String summary
 ) {}
