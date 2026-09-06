@@ -36,7 +36,7 @@ Additionally, it leverages Google's Gemini LLMs (`gemini-3.8-flash`) to automati
     *   **Thinking Tokens**: Internal Gemini reasoning chains captured in `step.thinking`.
     *   **Output Tokens**: Model responses (`PLANNER_RESPONSE`, `MESSAGE`) and serialized tool call arguments.
 *   **Interactive Token Breakdown**: An expandable distribution chart in the stats panel displaying the proportional split between Input (cyan), Thinking (purple), and Output (green) tokens.
-*   **Estimated Financial Cost**: Projects overall session costs based on Gemini 3.8 Flash pricing tiers ($0.10 / 1M input tokens, $0.40 / 1M output & thinking tokens).
+*   **Estimated Financial Cost**: Projects overall session costs based on Gemini 3.8 Flash pricing tiers ($0.75 / 1M input tokens, $3.75 / 1M output & thinking tokens).
 *   **Backend Chunking Estimation**: In `AnalysisController`, uses LangChain4j's `TokenCountEstimator` (`GoogleGenAiTokenCountEstimator`) to calculate precise token counts, ensuring multi-turn transcripts are safely divided into token-bounded chunks prior to LLM analysis.
 
 **Tabbed Session Inspection**

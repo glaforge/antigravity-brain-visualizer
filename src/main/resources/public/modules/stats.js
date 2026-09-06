@@ -331,9 +331,9 @@ export function renderStats(steps) {
   errorsChartHtml += "</div>";
 
   const totalTokens = inputTokens + thinkingTokens + outputTokens;
-  // Gemini 3.8 Flash Pricing: $0.10 / 1M input tokens, $0.40 / 1M output tokens (including thinking)
+  // Gemini 3.8 Flash Pricing: $0.75 / 1M input tokens, $3.75 / 1M output tokens (including thinking)
   const estimatedCost =
-    (inputTokens * 0.1 + (outputTokens + thinkingTokens) * 0.4) / 1000000;
+    (inputTokens * 0.75 + (outputTokens + thinkingTokens) * 3.75) / 1000000;
   const formatTokens = (t) => {
     if (t >= 1000000) return (t / 1000000).toFixed(2) + "M";
     if (t >= 1000) return (t / 1000).toFixed(1) + "k";
@@ -347,7 +347,7 @@ export function renderStats(steps) {
   tokensChartHtml +=
     '<div style="display:flex; justify-content:space-between; align-items:center; margin-bottom: 16px;">' +
     '<div style="font-size: 0.75rem; font-weight: 700; color: #38bdf8; letter-spacing: 0.05em; text-transform: uppercase;">Estimated Token Consumption (Gemini 3.8 Flash)</div>' +
-    `<div style="font-size: 0.8rem; color: var(--text-secondary);">Est. Cost: <strong style="color:#10b981;">${costStr}</strong> ($0.10 / $0.40 per 1M)</div>` +
+    `<div style="font-size: 0.8rem; color: var(--text-secondary);">Est. Cost: <strong style="color:#10b981;">${costStr}</strong> ($0.75 / $3.75 per 1M)</div>` +
     "</div>";
 
   if (totalTokens === 0) {
