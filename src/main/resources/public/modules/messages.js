@@ -13,7 +13,21 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-import { escapeHtml, formatTime, syntaxHighlight } from "./utils.js";
+import {
+  escapeHtml,
+  formatTime,
+  syntaxHighlight,
+  renderMarkdown,
+} from "./utils.js";
+
+const uuidRegex =
+  /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+
+function extractConversationId(val) {
+  if (!val || typeof val !== "string") return null;
+  const clean = val.split("/")[0].trim();
+  return uuidRegex.test(clean) ? clean : null;
+}
 
 export async function renderMessagesView(container, conversationId, flavor) {
   container.innerHTML = `
@@ -60,9 +74,20 @@ export async function renderMessagesView(container, conversationId, flavor) {
         : "rgba(59, 130, 246, 0.15)";
       const title = msg.renderDetails?.messageTitle || "Inter-Agent Message";
       const sender = msg.sender || "System";
-      const recipient = msg.recipient || "Agent";
       const content = msg.content || "";
       const sourceMeta = msg.sourceMetadata;
+
+      const senderConvId =
+        msg.sourceMetadata?.tool?.conversationId ||
+        extractConversationId(sender);
+
+      const senderHtml = senderConvId
+        ? `<a href="#${senderConvId}" class="conv-link" data-conv-id="${senderConvId}" title="Navigate to subagent transcript (${escapeHtml(
+            senderConvId
+          )})"><code style="color:#a78bfa;">${escapeHtml(
+            sender
+          )}</code><span class="jump-icon">↗</span></a>`
+        : `<code style="color:#a78bfa;">${escapeHtml(sender)}</code>`;
 
       html += `
         <div class="message-card" style="background:rgba(30, 41, 59, 0.4); border:1px solid var(--border-color); border-radius:10px; overflow:hidden; transition:all 0.2s;">
@@ -73,12 +98,8 @@ export async function renderMessagesView(container, conversationId, flavor) {
                 <div style="font-weight:600; font-size:0.9rem; color:var(--text-primary);">${escapeHtml(
                   title
                 )}</div>
-                <div style="font-size:0.75rem; color:var(--text-secondary); margin-top:2px;">
-                  From: <code style="color:#a78bfa;">${escapeHtml(
-                    sender
-                  )}</code> → To: <code style="color:#60a5fa;">${escapeHtml(
-        recipient
-      )}</code>
+                <div style="font-size:0.75rem; color:var(--text-secondary); margin-top:4px; display:flex; align-items:center; gap:6px;">
+                  <span>From:</span> ${senderHtml}
                 </div>
               </div>
             </div>
@@ -96,7 +117,7 @@ export async function renderMessagesView(container, conversationId, flavor) {
           <div style="padding:16px;">
             ${
               content
-                ? `<div class="markdown-body" style="font-size:0.9rem; max-height:300px; overflow-y:auto;">${marked.parse(
+                ? `<div class="markdown-body" style="font-size:0.9rem; max-height:300px; overflow-y:auto;">${renderMarkdown(
                     content
                   )}</div>`
                 : ""
@@ -121,6 +142,25 @@ export async function renderMessagesView(container, conversationId, flavor) {
 
     html += `</div>`;
     container.innerHTML = html;
+
+    if (!container.dataset.listenerAttached) {
+      container.addEventListener("click", (e) => {
+        const link = e.target.closest(".conv-link");
+        if (link && link.dataset.convId) {
+          if (e.metaKey || e.ctrlKey || e.shiftKey || e.button !== 0) {
+            return;
+          }
+          e.preventDefault();
+          const targetId = link.dataset.convId;
+          if (typeof window.navigateToConversation === "function") {
+            window.navigateToConversation(targetId, true);
+          } else {
+            window.location.hash = targetId;
+          }
+        }
+      });
+      container.dataset.listenerAttached = "true";
+    }
   } catch (err) {
     container.innerHTML = `<div class="error-msg" style="color:var(--error); padding:24px;">Failed to load messages view: ${escapeHtml(
       err.message

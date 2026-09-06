@@ -13,7 +13,13 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-import { state, escapeHtml, syntaxHighlight, formatTime } from "./utils.js";
+import {
+  state,
+  escapeHtml,
+  syntaxHighlight,
+  formatTime,
+  renderMarkdown,
+} from "./utils.js";
 import { openDrawer } from "./chat.js";
 
 const STANDARD_HTML_TAGS = new Set([
@@ -348,7 +354,7 @@ export function renderTranscript(steps, container) {
 
     let html = "";
     if (step.thinking) {
-      html += `<div class="thought-box">${marked.parse(step.thinking)}</div>`;
+      html += `<div class="thought-box">${renderMarkdown(step.thinking)}</div>`;
     }
 
     if (step.content) {
@@ -399,7 +405,7 @@ export function renderTranscript(steps, container) {
                 .trim();
               if (preText) {
                 const cleanPre = unwrapPromptXmlTags(preText);
-                htmlParts += `<div class="user-request-block">${marked.parse(
+                htmlParts += `<div class="user-request-block">${renderMarkdown(
                   cleanPre
                 )}</div>`;
               }
@@ -408,7 +414,7 @@ export function renderTranscript(steps, container) {
             const tagContent = match[2].trim();
             if (tagName === "USER_REQUEST") {
               const cleanUserContent = unwrapPromptXmlTags(tagContent);
-              htmlParts += `<div class="user-request-block">${marked.parse(
+              htmlParts += `<div class="user-request-block">${renderMarkdown(
                 cleanUserContent
               )}</div>`;
             } else {
@@ -417,7 +423,7 @@ export function renderTranscript(steps, container) {
                 .map((w) => w.charAt(0) + w.slice(1).toLowerCase())
                 .join(" ");
               const cleanContext = unwrapPromptXmlTags(tagContent);
-              htmlParts += `<div class="system-context-block"><strong>${niceName}</strong><div class="system-context-content">${marked.parse(
+              htmlParts += `<div class="system-context-block"><strong>${niceName}</strong><div class="system-context-content">${renderMarkdown(
                 cleanContext
               )}</div></div>`;
             }
@@ -427,7 +433,7 @@ export function renderTranscript(steps, container) {
             const postText = processedContent.substring(lastIndex).trim();
             if (postText) {
               const cleanPost = unwrapPromptXmlTags(postText);
-              htmlParts += `<div class="user-request-block">${marked.parse(
+              htmlParts += `<div class="user-request-block">${renderMarkdown(
                 cleanPost
               )}</div>`;
             }
@@ -435,7 +441,7 @@ export function renderTranscript(steps, container) {
           formattedContent = `<div class="markdown-body">${
             hasTags
               ? htmlParts
-              : marked.parse(unwrapPromptXmlTags(processedContent))
+              : renderMarkdown(unwrapPromptXmlTags(processedContent))
           }</div>`;
         } else {
           let contentText = processedContent;
@@ -538,7 +544,7 @@ export function renderTranscript(steps, container) {
           }
           formattedContent =
             prefixHtml +
-            `<div class="markdown-body">${marked.parse(contentText)}</div>`;
+            `<div class="markdown-body">${renderMarkdown(contentText)}</div>`;
         }
       } else {
         let contentText = step.content;
@@ -902,7 +908,7 @@ export function renderTranscript(steps, container) {
               const text = await res.text();
               previewContainer.dataset.loaded = "true";
               if (spooledPath.endsWith(".md")) {
-                previewContainer.innerHTML = `<div class="markdown-body">${marked.parse(
+                previewContainer.innerHTML = `<div class="markdown-body">${renderMarkdown(
                   text
                 )}</div>`;
                 previewContainer

@@ -131,3 +131,51 @@ export function updateTranscriptFilter() {
     wrapper.style.display = hasVisibleCard ? "block" : "none";
   });
 }
+
+export function renderMarkdown(text) {
+  if (!text || typeof text !== "string") return "";
+
+  let processed = text;
+
+  // 1. Format raw task/command execution outputs into pre/code blocks if not already fenced
+  processed = processed.replace(
+    /(\bOutput:\r?\n)([\s\S]*?)(?=(\r?\n\*{1,3}|\s*$))/g,
+    (match, prefix, output) => {
+      const trimmed = output.trim();
+      if (!trimmed || trimmed.startsWith("```")) return match;
+      return `${prefix}\`\`\`text\n${trimmed}\n\`\`\`\n\n`;
+    }
+  );
+
+  // 2. Transform GitHub alert blockquotes into styled alert cards
+  const alertRegex =
+    /^>[ \t]*\[!(NOTE|TIP|IMPORTANT|WARNING|CAUTION)\][ \t]*(.*(?:\r?\n>[ \t]*.*)*)/gim;
+  processed = processed.replace(alertRegex, (match, type, rest) => {
+    const t = type.toUpperCase();
+    const icons = {
+      NOTE: "ℹ️",
+      TIP: "💡",
+      IMPORTANT: "❗",
+      WARNING: "⚠️",
+      CAUTION: "🛑",
+    };
+    const icon = icons[t] || "ℹ️";
+    const lines = rest.split(/\r?\n/).map((l) => l.replace(/^>[ \t]?/, ""));
+    const firstLine = lines[0] ? lines[0].trim() : "";
+    const remainingLines = lines.slice(1).join("\n").trim();
+    const title = firstLine || t;
+    return `<div class="markdown-alert markdown-alert-${t.toLowerCase()}">\n<div class="markdown-alert-title"><span class="alert-icon">${icon}</span> ${title}</div>\n<div class="markdown-alert-content">\n\n${remainingLines}\n\n</div>\n</div>\n\n`;
+  });
+
+  // 3. Fix loose asterisks with inner whitespace (e.g. "*** TEXT ***" or "** TEXT **")
+  processed = processed.replace(
+    /(\*{1,3})\s+([^*\n]+?)\s+(\*{1,3})/g,
+    "$1$2$3"
+  );
+
+  if (typeof marked !== "undefined" && marked.parse) {
+    return marked.parse(processed, { breaks: true, gfm: true });
+  }
+
+  return escapeHtml(processed);
+}

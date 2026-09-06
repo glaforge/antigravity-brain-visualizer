@@ -285,6 +285,30 @@ document.addEventListener("DOMContentLoaded", async () => {
       }
     });
   }
+
+  window.navigateToConversation = navigateToConversation;
+
+  window.addEventListener("hashchange", () => {
+    const hashId = window.location.hash.substring(1);
+    if (hashId && hashId !== state.currentConversationId) {
+      navigateToConversation(hashId, false);
+    }
+  });
+
+  // Support conversation:// links anywhere in the page (e.g. within markdown/chat)
+  document.addEventListener("click", (e) => {
+    const convSchemeLink = e.target.closest('a[href^="conversation://"]');
+    if (convSchemeLink) {
+      e.preventDefault();
+      const targetId = convSchemeLink
+        .getAttribute("href")
+        .replace("conversation://", "")
+        .trim();
+      if (targetId) {
+        navigateToConversation(targetId, true);
+      }
+    }
+  });
 });
 
 async function loadFlavors(selectElement) {
@@ -441,6 +465,40 @@ function renderConversationsList() {
 
   if (targetDiv) {
     targetDiv.click();
+  } else if (hashId) {
+    selectConversation(hashId, null);
+  }
+}
+
+export function navigateToConversation(id, switchTab = true) {
+  if (!id) return;
+
+  if (switchTab) {
+    const transcriptBtn = document.getElementById("tab-transcript-btn");
+    if (transcriptBtn) {
+      transcriptBtn.click();
+    }
+  }
+
+  let item = document.querySelector(`.conv-item[data-id="${id}"]`);
+
+  // If the conversation is not rendered, it may be hidden by search filter
+  if (!item) {
+    const searchInput = document.getElementById("conversation-search");
+    const clearSearchBtn = document.getElementById("clear-search-btn");
+    if (searchInput && searchInput.value) {
+      searchInput.value = "";
+      if (clearSearchBtn) clearSearchBtn.style.display = "none";
+      renderConversationsList();
+      item = document.querySelector(`.conv-item[data-id="${id}"]`);
+    }
+  }
+
+  if (item) {
+    item.scrollIntoView({ block: "nearest", behavior: "smooth" });
+    selectConversation(id, item);
+  } else {
+    selectConversation(id, null);
   }
 }
 
@@ -454,13 +512,27 @@ async function selectConversation(id, element) {
   document
     .querySelectorAll(".conv-item")
     .forEach((el) => el.classList.remove("active"));
-  element.classList.add("active");
+
+  let targetElement = element;
+  if (!targetElement) {
+    targetElement = document.querySelector(`.conv-item[data-id="${id}"]`);
+  }
+  if (targetElement) {
+    targetElement.classList.add("active");
+  }
 
   // Update URL hash
-  window.location.hash = id;
+  if (window.location.hash !== `#${id}`) {
+    window.location.hash = id;
+  }
 
   const title = document.getElementById("current-session-title");
-  title.innerText = element.querySelector(".conv-id").innerText;
+  if (targetElement) {
+    title.innerText = targetElement.querySelector(".conv-id")?.innerText || id;
+  } else {
+    const conv = allConversations.find((c) => c.id === id);
+    title.innerText = conv ? conv.summary : id;
+  }
 
   const subtitle = document.getElementById("current-session-id");
   subtitle.innerText = id;

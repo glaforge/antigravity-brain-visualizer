@@ -13,7 +13,7 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-import { state, escapeHtml } from "./utils.js";
+import { state, escapeHtml, renderMarkdown } from "./utils.js";
 
 let activeContext = { type: "global", targetId: "", label: "Global Session" };
 
@@ -207,8 +207,8 @@ function appendMessage(role, text) {
   contentDiv.className = "chat-message-content markdown-body";
 
   if (role === "assistant") {
-    // Parse Markdown using marked.js
-    let html = marked.parse(text);
+    // Parse Markdown
+    let html = renderMarkdown(text);
     contentDiv.innerHTML = html;
 
     // Apply syntax highlighting & enhance code blocks with copy/skill buttons

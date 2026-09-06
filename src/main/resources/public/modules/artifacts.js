@@ -13,7 +13,7 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-import { escapeHtml, formatTime } from "./utils.js";
+import { escapeHtml, formatTime, renderMarkdown } from "./utils.js";
 
 export async function renderArtifactsView(container, conversationId, flavor) {
   container.innerHTML = `
@@ -264,7 +264,7 @@ export async function renderArtifactsView(container, conversationId, flavor) {
 
         viewerBody.innerHTML =
           metaBanner +
-          `<div class="markdown-body">${marked.parse(mdText)}</div>`;
+          `<div class="markdown-body">${renderMarkdown(mdText)}</div>`;
         viewerBody.querySelectorAll("pre code").forEach((el) => {
           hljs.highlightElement(el);
         });
