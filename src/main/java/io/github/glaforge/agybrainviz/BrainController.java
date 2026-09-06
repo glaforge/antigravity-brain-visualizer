@@ -169,12 +169,13 @@ public class BrainController {
     public String getTranscript(@PathVariable String id, @QueryValue Optional<String> flavor)
         throws IOException {
         Path brainPath = getBrainPath(flavor.orElse("antigravity-cli"));
-        Path transcriptPath = brainPath
-            .resolve(id)
-            .resolve(".system_generated/logs/transcript_full.jsonl");
+        Path convPath = brainPath.resolve(id).normalize();
+        if (!convPath.startsWith(brainPath.normalize())) {
+            return "[]";
+        }
+        Path transcriptPath = convPath.resolve(".system_generated/logs/transcript_full.jsonl");
         if (!Files.exists(transcriptPath)) {
-            transcriptPath =
-                brainPath.resolve(id).resolve(".system_generated/logs/transcript.jsonl");
+            transcriptPath = convPath.resolve(".system_generated/logs/transcript.jsonl");
         }
         if (!Files.exists(transcriptPath)) {
             return "[]";
@@ -215,8 +216,11 @@ public class BrainController {
         @PathVariable String id,
         @QueryValue Optional<String> flavor
     ) {
-        Path brainPath = getBrainPath(flavor.orElse("antigravity-cli")).resolve(id);
-        if (!Files.exists(brainPath)) return List.of();
+        Path baseBrainPath = getBrainPath(flavor.orElse("antigravity-cli"));
+        Path brainPath = baseBrainPath.resolve(id).normalize();
+        if (!brainPath.startsWith(baseBrainPath.normalize()) || !Files.exists(brainPath)) {
+            return List.of();
+        }
 
         List<Map<String, Object>> artifacts = new ArrayList<>();
         ObjectMapper mapper = new ObjectMapper();
@@ -266,7 +270,9 @@ public class BrainController {
         @PathVariable String id,
         @QueryValue Optional<String> flavor
     ) {
-        Path convPath = getBrainPath(flavor.orElse("antigravity-cli")).resolve(id);
+        Path baseBrainPath = getBrainPath(flavor.orElse("antigravity-cli"));
+        Path convPath = baseBrainPath.resolve(id).normalize();
+        if (!convPath.startsWith(baseBrainPath.normalize())) return List.of();
         Path gitDir = convPath.resolve(".git");
         if (!Files.exists(gitDir)) return List.of();
 
@@ -315,7 +321,11 @@ public class BrainController {
         @QueryValue String commit,
         @QueryValue Optional<String> flavor
     ) {
-        Path convPath = getBrainPath(flavor.orElse("antigravity-cli")).resolve(id);
+        Path baseBrainPath = getBrainPath(flavor.orElse("antigravity-cli"));
+        Path convPath = baseBrainPath.resolve(id).normalize();
+        if (!convPath.startsWith(baseBrainPath.normalize())) {
+            return HttpResponse.unauthorized();
+        }
         Path gitDir = convPath.resolve(".git");
         if (!Files.exists(gitDir)) {
             return HttpResponse.notFound("No git repository found for conversation");
@@ -346,9 +356,10 @@ public class BrainController {
         @PathVariable String id,
         @QueryValue Optional<String> flavor
     ) {
-        Path messagesDir = getBrainPath(flavor.orElse("antigravity-cli"))
-            .resolve(id)
-            .resolve(".system_generated/messages");
+        Path baseBrainPath = getBrainPath(flavor.orElse("antigravity-cli"));
+        Path convPath = baseBrainPath.resolve(id).normalize();
+        if (!convPath.startsWith(baseBrainPath.normalize())) return List.of();
+        Path messagesDir = convPath.resolve(".system_generated/messages");
         if (!Files.exists(messagesDir)) return List.of();
 
         List<Map<String, Object>> messages = new ArrayList<>();
