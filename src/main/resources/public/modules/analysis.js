@@ -56,9 +56,9 @@ export async function triggerAnalysis(sessionId, force) {
     if (force || !state.summaryCache[sessionId]) {
       const pContainer = document.createElement("div");
       pContainer.innerHTML = `
-                <div style="font-size: 0.9rem; color: var(--text-secondary); margin-bottom: 8px;"><span id="progress-phase">Starting analysis...</span> <span id="progress-text">0%</span></div>
+                <div style="font-size: 0.9rem; color: var(--text-secondary); margin-bottom: 8px;"><span id="progress-phase">Extracting conversation context...</span> <span id="progress-text">10%</span></div>
                 <div style="width: 100%; height: 6px; background: rgba(255,255,255,0.1); border-radius: 3px; overflow: hidden;">
-                    <div id="progress-bar" style="width: 0%; height: 100%; background: var(--accent-blue); transition: width 0.3s ease-out;"></div>
+                    <div id="progress-bar" style="width: 10%; height: 100%; background: var(--accent-blue); transition: width 0.3s ease-out;"></div>
                 </div>
             `;
       aiText.innerHTML = "";
@@ -81,13 +81,13 @@ export async function triggerAnalysis(sessionId, force) {
               const phase = document.getElementById("progress-phase");
               const pt = document.getElementById("progress-text");
               const pb = document.getElementById("progress-bar");
-              if (phase) phase.innerText = pdata.phase;
+              if (phase && pdata.phase) phase.innerText = pdata.phase;
               if (pt) pt.innerText = pdata.progress + "%";
               if (pb) pb.style.width = pdata.progress + "%";
             }
           }
         } catch (e) {}
-        await new Promise((r) => setTimeout(r, 1000));
+        await new Promise((r) => setTimeout(r, 400));
       }
     };
 
@@ -95,6 +95,15 @@ export async function triggerAnalysis(sessionId, force) {
 
     const res = await fetch(url);
     polling = false; // stop polling
+
+    // Briefly show 100% completion
+    const pt = document.getElementById("progress-text");
+    const pb = document.getElementById("progress-bar");
+    const phase = document.getElementById("progress-phase");
+    if (pt) pt.innerText = "100%";
+    if (pb) pb.style.width = "100%";
+    if (phase) phase.innerText = "Done";
+    await new Promise((r) => setTimeout(r, 200));
 
     const data = await res.json();
 

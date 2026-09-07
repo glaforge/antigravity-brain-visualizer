@@ -23,9 +23,15 @@ import io.micronaut.langchain4j.annotation.AiService;
 @AiService
 public interface AnalyzerService {
     @SystemMessage("""
-			You are an expert at analyzing JSONL transcripts of Antigravity sessions.
+			You are an expert at analyzing transcripts of Antigravity AI agent sessions.
 			Your job is to extract the core insights, actions, issues, and actionable recommendations
 			(e.g. missing tools, helpful skills to create, or AGENTS.md advice) into a structured JSON format.
+
+			The transcript contains:
+			- USER REQUEST: The prompt or task given by the user.
+			- AGENT ACTION: Tool invocations with their action descriptions and targets.
+			- AGENT RESPONSE: Direct assistant text answers, findings, and explanations.
+			- TOOL RESULT / ERROR: Key outputs or errors from executed commands and tools.
 
 			Your output MUST be a valid JSON object strictly containing ALL of the following fields:
 			{
@@ -56,10 +62,11 @@ public interface AnalyzerService {
 			- Do NOT omit any fields. All 6 fields ("shortTitle", "flow", "agentActions", "issues", "recommendations", "summary") are mandatory in the JSON response.
 			- If there are no issues or recommendations, return an empty array [] for that field.
 			- Always extract the agent's key actions into "agentActions" and the chronological sequence into "flow".
+			- Incorporate both agent actions and direct agent responses/conclusions into the flow and summary.
 			- Keep the summary focused, natural, and concise. Do NOT add repetitive word chains or artificial filler.
 			""")
     @UserMessage("""
-			Please analyze the following JSONL transcript of an Antigravity session.
+			Please analyze the following transcript of an Antigravity session.
 
 			INSTRUCTIONS:
 			- Output MUST be a complete JSON object containing all 6 fields: shortTitle, flow, agentActions, issues, recommendations, summary.
@@ -72,41 +79,4 @@ public interface AnalyzerService {
 			{{transcript}}
 			""")
     AnalysisResponse analyze(@V("transcript") String transcript);
-
-    @UserMessage("""
-			Here is the structured analysis from the previous parts of the conversation:
-
-			{{previousAnalysis}}
-
-			Please update and enhance this analysis using the next section of the transcript below.
-			INSTRUCTIONS:
-			- Output MUST be valid JSON strictly adhering to the schema.
-			- Incorporate the new context into the existing analysis.
-			- Merge new elements concisely without duplicating existing items.
-			- Update the `summary` to reflect the accumulated narrative from the beginning of the session up to this chunk.
-			- Output MUST be exclusively in English.
-			- Avoid redundant repetition or repetitive filler words in the summary.
-
-			New Transcript Chunk:
-			{{transcript}}
-			""")
-    AnalysisResponse refineAnalysis(
-        @V("previousAnalysis") String previousAnalysis,
-        @V("transcript") String transcript
-    );
-
-    @UserMessage("""
-			Here is a list of partial structured analysis objects, each corresponding to a distinct segment of the same session:
-
-			{{combinedSummariesJson}}
-
-			Please consolidate them into a single, unified, and comprehensive structured analysis.
-			INSTRUCTIONS:
-			- Output MUST be valid JSON strictly adhering to the schema.
-			- Merge items thoughtfully, avoiding duplicate issues or actions.
-			- Ensure your summary provides a clear overarching narrative of the entire session.
-			- Output MUST be exclusively in English.
-			- Avoid redundant repetition or repetitive filler words in the summary.
-			""")
-    AnalysisResponse consolidateAnalysis(@V("combinedSummariesJson") String combinedSummariesJson);
 }

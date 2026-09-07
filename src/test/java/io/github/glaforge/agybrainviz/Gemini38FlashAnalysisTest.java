@@ -144,75 +144,38 @@ class Gemini38FlashAnalysisTest {
 
     @Test
     @EnabledIfEnvironmentVariable(named = "GEMINI_API_KEY", matches = ".+")
-    void testRefineAnalysisWithGemini38Flash() {
-        String initialTranscript = """
-            USER REQUEST: Start game is failing with error.
-            AGENT ACTION: [view_file] Inspect index.html
-            """;
-        AnalysisResponse initial = analyzerService.analyze(initialTranscript);
-        Assertions.assertNotNull(initial);
-
-        ObjectMapper mapper = new ObjectMapper();
-        String nextTranscript = """
-            AGENT ACTION: [replace_file_content] Fixed button ID in index.html
-            AGENT ACTION: [run_command] Running test -> npm test
-            SYSTEM EVENT/ERROR: Tests passed successfully!
+    void testEnrichedAnalysisWithGemini38Flash() {
+        String enrichedTranscript = """
+            USER REQUEST: Does Jinfer use GPU at all?
+            AGENT ACTION: [view_file] Inspect jam_metal.mm -> /Users/glaforge/Projects/qxotic/jam/jam-native/src/jam_metal.mm
+            AGENT ACTION: [run_command] Running CPU-only benchmark -> JAM_ISA=i8mm java -jar jinfer-bench.jar
+            TOOL FAILURE: exited with code 1
+            AGENT ACTION: [run_command] Running Metal GPU benchmark -> JAM_ISA=metal java -jar jinfer-bench.jar
+            AGENT RESPONSE: Yes, Jinfer does use the GPU on Apple Silicon via a hybrid CPU/GPU architecture utilizing Apple Metal!
             """;
 
-        AnalysisResponse refined = null;
-        try {
-            refined =
-                analyzerService.refineAnalysis(mapper.writeValueAsString(initial), nextTranscript);
-        } catch (Exception e) {
-            Assertions.fail("JSON serialization failed: " + e.getMessage());
-        }
+        AnalysisResponse analysis = analyzerService.analyze(enrichedTranscript);
 
-        Assertions.assertNotNull(refined);
-        Assertions.assertNotNull(refined.shortTitle());
-        Assertions.assertNotNull(refined.flow());
-        Assertions.assertNotNull(refined.agentActions());
-        Assertions.assertNotNull(refined.summary());
-        System.out.println("Refined Title: " + refined.shortTitle());
-        System.out.println("Refined Summary: " + refined.summary());
-    }
+        Assertions.assertNotNull(analysis);
+        Assertions.assertNotNull(analysis.shortTitle());
+        Assertions.assertFalse(analysis.shortTitle().isBlank());
+        Assertions.assertNotNull(analysis.flow());
+        Assertions.assertFalse(analysis.flow().isEmpty());
+        Assertions.assertNotNull(analysis.agentActions());
+        Assertions.assertFalse(analysis.agentActions().isEmpty());
+        Assertions.assertNotNull(analysis.summary());
+        Assertions.assertFalse(analysis.summary().isBlank());
 
-    @Test
-    @EnabledIfEnvironmentVariable(named = "GEMINI_API_KEY", matches = ".+")
-    void testConsolidateAnalysisWithGemini38Flash() {
-        AnalysisResponse chunk1 = new AnalysisResponse(
-            "Phase 1: Investigation",
-            List.of("Examined file structure", "Identified missing dependency"),
-            List.of(new AgentAction("view_file", "Checked package.json")),
-            List.of(new Issue("Missing dep", "Identified in package.json")),
-            List.of("Add dependency check script"),
-            "Phase 1 focused on diagnosing the missing dependency."
+        System.out.println("Enriched Title: " + analysis.shortTitle());
+        System.out.println("Enriched Summary: " + analysis.summary());
+        // Verify that the assistant response about Metal/GPU or hybrid architecture was incorporated
+        String lowerSummary = analysis.summary().toLowerCase();
+        Assertions.assertTrue(
+            lowerSummary.contains("gpu") ||
+            lowerSummary.contains("metal") ||
+            lowerSummary.contains("jinfer"),
+            "Summary should incorporate GPU/Metal findings from agent response"
         );
-
-        AnalysisResponse chunk2 = new AnalysisResponse(
-            "Phase 2: Resolution",
-            List.of("Installed dependency", "Verified build"),
-            List.of(new AgentAction("run_command", "Ran npm install")),
-            List.of(),
-            List.of(),
-            "Phase 2 completed the installation and verified the build."
-        );
-
-        ObjectMapper mapper = new ObjectMapper();
-        AnalysisResponse consolidated = null;
-        try {
-            String combinedJson = mapper.writeValueAsString(List.of(chunk1, chunk2));
-            consolidated = analyzerService.consolidateAnalysis(combinedJson);
-        } catch (Exception e) {
-            Assertions.fail("Consolidation call failed: " + e.getMessage());
-        }
-
-        Assertions.assertNotNull(consolidated);
-        Assertions.assertNotNull(consolidated.shortTitle());
-        Assertions.assertNotNull(consolidated.flow());
-        Assertions.assertNotNull(consolidated.agentActions());
-        Assertions.assertNotNull(consolidated.summary());
-        System.out.println("Consolidated Title: " + consolidated.shortTitle());
-        System.out.println("Consolidated Summary: " + consolidated.summary());
     }
 
     @Test
@@ -246,5 +209,43 @@ class Gemini38FlashAnalysisTest {
         System.out.println("Real session analysis result length: " + resultJson.length());
         Assertions.assertTrue(resultJson.contains("shortTitle"), "Should contain shortTitle");
         Assertions.assertTrue(resultJson.contains("summary"), "Should contain summary");
+    }
+
+    @Test
+    @EnabledIfEnvironmentVariable(named = "GEMINI_API_KEY", matches = ".+")
+    void testJinferSessionAnalysisWithAnalysisController() throws Exception {
+        String testConversationId = "96a029b3-bbdf-4bc2-9a79-144a0411a7b8";
+        Path brainPath = Paths.get(
+            System.getProperty("user.home"),
+            ".gemini",
+            "antigravity",
+            "brain",
+            testConversationId,
+            ".system_generated",
+            "logs",
+            "transcript.jsonl"
+        );
+
+        if (!Files.exists(brainPath)) {
+            System.out.println("Session transcript not found at " + brainPath + ", skipping test.");
+            return;
+        }
+
+        String resultJson = analysisController.summarizeConversation(
+            testConversationId,
+            Optional.of(true),
+            Optional.of("antigravity")
+        );
+
+        Assertions.assertNotNull(resultJson);
+        Assertions.assertFalse(resultJson.isBlank());
+        System.out.println("Jinfer session analysis result: " + resultJson);
+        Assertions.assertTrue(resultJson.contains("shortTitle"), "Should contain shortTitle");
+        Assertions.assertTrue(resultJson.contains("summary"), "Should contain summary");
+        String lower = resultJson.toLowerCase();
+        Assertions.assertTrue(
+            lower.contains("jinfer") || lower.contains("graalvm") || lower.contains("benchmark"),
+            "Analysis should identify Jinfer/GraalVM benchmarking context"
+        );
     }
 }

@@ -17,8 +17,6 @@ package io.github.glaforge.agybrainviz;
 
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
-import dev.langchain4j.model.TokenCountEstimator;
-import dev.langchain4j.model.google.genai.GoogleGenAiTokenCountEstimator;
 import io.micronaut.context.annotation.Value;
 import io.micronaut.core.annotation.ReflectiveAccess;
 import io.micronaut.http.annotation.Controller;
@@ -41,19 +39,32 @@ import java.util.Optional;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Future;
-import java.util.concurrent.Semaphore;
 import java.util.concurrent.atomic.AtomicBoolean;
-import java.util.concurrent.atomic.AtomicInteger;
+import java.util.regex.Matcher;
+import java.util.regex.Pattern;
 
 @Controller("/api/analysis")
 public class AnalysisController {
+
+    private static final int MAX_SAFE_TRANSCRIPT_CHARS = 2_000_000;
+    private static final Pattern EXIT_CODE_PATTERN = Pattern.compile(
+        "exited with code:?\\s*(\\d+)"
+    );
+
+    private static String cleanArg(JsonNode node) {
+        if (node == null || node.isMissingNode() || node.isNull()) return "";
+        String s = node.asText("").trim();
+        if (s.startsWith("\"") && s.endsWith("\"") && s.length() >= 2) {
+            s = s.substring(1, s.length() - 1).trim();
+        }
+        return s;
+    }
 
     private Path getBrainPath(String flavor) {
         if (flavor == null || flavor.isEmpty()) flavor = "antigravity-cli";
         return Paths.get(System.getProperty("user.home"), ".gemini", flavor, "brain");
     }
 
-    private static final int MAX_TOKENS_PER_CHUNK = 100_000;
     private static final Map<String, ProgressState> progressMap = new ConcurrentHashMap<>();
 
     @ReflectiveAccess
@@ -86,45 +97,6 @@ public class AnalysisController {
     ) {
         this.analyzerService = analyzerService;
         this.executor = executor;
-    }
-
-    private void splitIntoSafeChunks(
-        List<String> lines,
-        TokenCountEstimator estimator,
-        int maxTokens,
-        List<List<String>> safeChunks
-    ) {
-        if (lines.isEmpty()) return;
-        String text = String.join("\n", lines);
-        try {
-            int tokens = estimator.estimateTokenCountInText(text);
-            if (tokens <= maxTokens || lines.size() == 1) {
-                safeChunks.add(lines);
-            } else {
-                int mid = lines.size() / 2;
-                splitIntoSafeChunks(lines.subList(0, mid), estimator, maxTokens, safeChunks);
-                splitIntoSafeChunks(
-                    lines.subList(mid, lines.size()),
-                    estimator,
-                    maxTokens,
-                    safeChunks
-                );
-            }
-        } catch (Exception e) {
-            int fallbackTokens = text.length() / 2;
-            if (fallbackTokens <= maxTokens || lines.size() == 1) {
-                safeChunks.add(lines);
-            } else {
-                int mid = lines.size() / 2;
-                splitIntoSafeChunks(lines.subList(0, mid), estimator, maxTokens, safeChunks);
-                splitIntoSafeChunks(
-                    lines.subList(mid, lines.size()),
-                    estimator,
-                    maxTokens,
-                    safeChunks
-                );
-            }
-        }
     }
 
     private static final Map<String, Object> runningTasks = new ConcurrentHashMap<>();
@@ -169,14 +141,13 @@ public class AnalysisController {
                 .resolve("short_title.txt");
 
             if (!forceRecompute && Files.exists(summaryJsonPath)) {
-                String json = Files.readString(summaryJsonPath);
-                return json;
+                return Files.readString(summaryJsonPath);
             } else if (forceRecompute) {
                 Files.deleteIfExists(summaryJsonPath);
             }
 
             ObjectMapper mapper = new ObjectMapper();
-            AnalysisResponse responseObj = null;
+            progressMap.put(id, new ProgressState(10, "Extracting conversation context..."));
 
             try {
                 List<String> allLines = Files.readAllLines(transcriptPath);
@@ -188,192 +159,203 @@ public class AnalysisController {
                     try {
                         JsonNode node = mapper.readTree(line);
                         String type = node.path("type").asText("");
-                        if (
-                            "USER_INPUT".equals(type) ||
-                            "USER_EXPLICIT".equals(node.path("source").asText(""))
-                        ) {
+                        String source = node.path("source").asText("");
+                        String status = node.path("status").asText("");
+                        String content = node.path("content").asText("");
+
+                        if ("USER_INPUT".equals(type) || "USER_EXPLICIT".equals(source)) {
                             if (!currentSequence.isEmpty()) {
                                 sequences.add(deduplicateSequence(currentSequence));
                                 currentSequence = new ArrayList<>();
                             }
-                            String content = node.path("content").asText("");
                             currentSequence.add(
                                 "USER REQUEST: " +
-                                content.substring(0, Math.min(2000, content.length()))
+                                content.substring(0, Math.min(4000, content.length())).trim()
                             );
-                        } else if (
-                            "PLANNER_RESPONSE".equals(type) ||
-                            "MODEL".equals(node.path("source").asText(""))
-                        ) {
+                        } else if ("PLANNER_RESPONSE".equals(type) || "MESSAGE".equals(type)) {
                             JsonNode tools = node.path("tool_calls");
-                            if (!tools.isMissingNode() && tools.isArray()) {
+                            if (!tools.isMissingNode() && tools.isArray() && tools.size() > 0) {
                                 for (JsonNode tool : tools) {
                                     String name = tool.path("name").asText("unknown");
-                                    String action = tool
-                                        .path("arguments")
-                                        .path("toolAction")
-                                        .asText("");
-                                    String tgt = tool
-                                        .path("arguments")
-                                        .path("TargetFile")
-                                        .asText("");
-                                    if (tgt.isEmpty()) tgt =
-                                        tool.path("arguments").path("CommandLine").asText("");
-                                    currentSequence.add(
-                                        "AGENT ACTION: [" + name + "] " + action + " -> " + tgt
-                                    );
+                                    JsonNode args = tool.has("args")
+                                        ? tool.path("args")
+                                        : tool.path("arguments");
+
+                                    String action = cleanArg(args.path("toolAction"));
+                                    if (action.isEmpty()) action =
+                                        cleanArg(args.path("Description"));
+                                    if (action.isEmpty()) action =
+                                        cleanArg(args.path("Instruction"));
+                                    if (action.isEmpty()) action =
+                                        cleanArg(args.path("toolSummary"));
+                                    if (action.isEmpty()) action = cleanArg(args.path("Prompt"));
+
+                                    String tgt = cleanArg(args.path("TargetFile"));
+                                    if (tgt.isEmpty()) tgt = cleanArg(args.path("CommandLine"));
+                                    if (tgt.isEmpty()) tgt = cleanArg(args.path("AbsolutePath"));
+                                    if (tgt.isEmpty()) tgt = cleanArg(args.path("Query"));
+                                    if (tgt.isEmpty()) tgt = cleanArg(args.path("Pattern"));
+                                    if (tgt.isEmpty()) tgt = cleanArg(args.path("DirectoryPath"));
+                                    if (tgt.isEmpty()) tgt = cleanArg(args.path("Url"));
+                                    if (tgt.isEmpty()) tgt = cleanArg(args.path("TaskId"));
+
+                                    if (action.isEmpty() && tgt.isEmpty()) {
+                                        currentSequence.add("AGENT ACTION: [" + name + "]");
+                                    } else if (action.isEmpty()) {
+                                        currentSequence.add("AGENT ACTION: [" + name + "] " + tgt);
+                                    } else if (tgt.isEmpty()) {
+                                        currentSequence.add(
+                                            "AGENT ACTION: [" + name + "] " + action
+                                        );
+                                    } else {
+                                        currentSequence.add(
+                                            "AGENT ACTION: [" + name + "] " + action + " -> " + tgt
+                                        );
+                                    }
                                 }
                             }
-                        } else if (
-                            node.has("error") ||
-                            (
-                                node.has("content") &&
-                                node.path("content").asText("").contains("Exception")
-                            )
-                        ) {
-                            String err = node.path("content").asText("");
-                            currentSequence.add(
-                                "SYSTEM EVENT/ERROR: " +
-                                err.substring(0, Math.min(500, err.length()))
-                            );
+                            String text = content.trim();
+                            if (!text.isEmpty()) {
+                                currentSequence.add(
+                                    "AGENT RESPONSE: " +
+                                    text.substring(0, Math.min(2000, text.length()))
+                                );
+                            }
+                        } else {
+                            boolean isFailure = false;
+                            if (
+                                "ERROR".equals(status) ||
+                                "ERROR_MESSAGE".equals(type) ||
+                                node.has("error")
+                            ) {
+                                isFailure = true;
+                            } else if (content.contains("The command failed")) {
+                                isFailure = true;
+                            } else {
+                                Matcher m = EXIT_CODE_PATTERN.matcher(content);
+                                if (m.find() && !"0".equals(m.group(1))) {
+                                    isFailure = true;
+                                } else if (
+                                    content.contains("Exception") &&
+                                    !"PLANNER_RESPONSE".equals(type)
+                                ) {
+                                    isFailure = true;
+                                }
+                            }
+
+                            if (isFailure) {
+                                String[] errLines = content.split("\n");
+                                List<String> cleanLines = new ArrayList<>();
+                                for (String l : errLines) {
+                                    String trimmed = l.trim();
+                                    if (
+                                        trimmed.isEmpty() ||
+                                        trimmed.startsWith("Created At:") ||
+                                        trimmed.startsWith("Completed At:")
+                                    ) {
+                                        continue;
+                                    }
+                                    cleanLines.add(trimmed);
+                                    if (cleanLines.size() >= 4) break;
+                                }
+                                String errSnippet = String.join(" | ", cleanLines);
+                                if (!errSnippet.isEmpty()) {
+                                    currentSequence.add(
+                                        "TOOL FAILURE: " +
+                                        errSnippet.substring(0, Math.min(500, errSnippet.length()))
+                                    );
+                                }
+                            } else if ("RUN_COMMAND".equals(type) || "GENERIC".equals(type)) {
+                                if (
+                                    content.contains("BUILD SUCCESSFUL") ||
+                                    content.contains("tests passed") ||
+                                    content.contains("Tests run:") ||
+                                    content.contains("0 errors")
+                                ) {
+                                    String[] outLines = content.split("\n");
+                                    for (String l : outLines) {
+                                        String trimmed = l.trim();
+                                        if (
+                                            trimmed.contains("BUILD SUCCESSFUL") ||
+                                            trimmed.contains("tests passed") ||
+                                            trimmed.contains("Tests run:") ||
+                                            trimmed.contains("0 errors")
+                                        ) {
+                                            currentSequence.add(
+                                                "TOOL RESULT: " +
+                                                trimmed.substring(
+                                                    0,
+                                                    Math.min(200, trimmed.length())
+                                                )
+                                            );
+                                            break;
+                                        }
+                                    }
+                                }
+                            }
                         }
                     } catch (Exception e) {
-                        // skip malformed
+                        // skip malformed lines
                     }
                 }
                 if (!currentSequence.isEmpty()) {
                     sequences.add(deduplicateSequence(currentSequence));
                 }
 
-                String resolvedModel = ChatModelFactory.resolveModelName(modelName);
-                TokenCountEstimator estimator = GoogleGenAiTokenCountEstimator
-                    .builder()
-                    .apiKey(apiKey)
-                    .modelName(resolvedModel)
-                    .build();
-
-                progressMap.put(id, new ProgressState(5, "Estimating Tokens & Chunking...")); // Phase 1: Estimating
-
                 List<String> combinedLines = new ArrayList<>();
                 for (List<String> seq : sequences) {
                     combinedLines.addAll(seq);
                 }
-                List<List<String>> optimalChunks = new ArrayList<>();
-                splitIntoSafeChunks(combinedLines, estimator, MAX_TOKENS_PER_CHUNK, optimalChunks);
 
-                System.out.println(
-                    "Total optimal chunks to process in parallel: " + optimalChunks.size()
-                );
-
-                progressMap.put(id, new ProgressState(0, "Starting chunk processing...")); // start at 0%
-
-                List<Future<AnalysisResponse>> futures = new ArrayList<>();
-                AtomicInteger completed = new AtomicInteger(0);
-
-                // Limit to 20 concurrent LLM requests, as we have drastically reduced chunk
-                // count
-                Semaphore rateLimitSemaphore = new Semaphore(20);
-
-                for (List<String> chunkLines : optimalChunks) {
-                    futures.add(
-                        executor.submit(() -> {
-                            try {
-                                rateLimitSemaphore.acquire();
-                            } catch (InterruptedException e) {
-                                Thread.currentThread().interrupt();
-                                return null;
-                            }
-
-                            try {
-                                String chunk = String.join("\n", chunkLines);
-                                AnalysisResponse seqResponse = null;
-                                try {
-                                    seqResponse = analyzerService.analyze(chunk);
-                                } catch (Exception e) {
-                                    System.err.println(
-                                        "Failed to parse chunk from LLM: " + e.getMessage()
-                                    );
-                                    e.printStackTrace();
-                                    // Ignore unparseable chunk
-                                }
-
-                                int comp = completed.incrementAndGet();
-                                // Scale parallel processing to 90% of the total progress
-                                int pct = (int) Math.round((comp * 90.0) / optimalChunks.size());
-                                String phaseMsg =
-                                    "Processing chunk " +
-                                    comp +
-                                    " of " +
-                                    optimalChunks.size() +
-                                    "...";
-
-                                // Prevent progress moving backwards if futures finish out of order
-                                progressMap.compute(
-                                    id,
-                                    (k, v) -> {
-                                        if (v == null || pct > v.progress()) {
-                                            return new ProgressState(pct, phaseMsg);
-                                        }
-                                        return v;
-                                    }
-                                );
-
-                                return seqResponse;
-                            } finally {
-                                rateLimitSemaphore.release();
-                            }
-                        })
-                    );
-                }
-
-                List<AnalysisResponse> seqResponses = new ArrayList<>();
-                for (Future<AnalysisResponse> f : futures) {
-                    AnalysisResponse r = f.get();
-                    if (r != null) seqResponses.add(r);
-                }
-
-                if (seqResponses.isEmpty()) {
+                if (combinedLines.isEmpty()) {
                     return "{\"summary\": \"No transcript lines found.\"}";
-                } else if (seqResponses.size() == 1) {
-                    responseObj = seqResponses.get(0);
-                } else {
-                    progressMap.put(id, new ProgressState(90, "Consolidating final analysis..."));
+                }
 
-                    // Keep the progress bar moving smoothly during the long final LLM consolidation
-                    AtomicBoolean consolidationDone = new AtomicBoolean(false);
-                    Future<?> fakeProgress = executor.submit(() -> {
-                        int p = 90;
-                        while (!consolidationDone.get() && p < 99) {
-                            try {
-                                Thread.sleep(2000);
-                            } catch (InterruptedException e) {
-                                break;
-                            }
-                            if (!consolidationDone.get()) {
-                                int nextP = p + 1;
-                                progressMap.put(
-                                    id,
-                                    new ProgressState(nextP, "Consolidating final analysis...")
-                                );
-                                p = nextP;
-                            }
+                String transcript = String.join("\n", combinedLines);
+
+                // Safety guardrail for massive autonomous multi-day sessions (>2M chars / ~500k tokens)
+                if (transcript.length() > MAX_SAFE_TRANSCRIPT_CHARS) {
+                    transcript =
+                        transcript.substring(0, 1_000_000) +
+                        "\n\n... [intermediate steps pruned for length] ...\n\n" +
+                        transcript.substring(transcript.length() - 1_000_000);
+                }
+
+                progressMap.put(id, new ProgressState(25, "Analyzing conversation with Gemini..."));
+
+                // Smooth progress ticker while waiting for Gemini 3.8 Flash response
+                AtomicBoolean analysisDone = new AtomicBoolean(false);
+                Future<?> progressTicker = executor.submit(() -> {
+                    int p = 25;
+                    while (!analysisDone.get() && p < 95) {
+                        try {
+                            Thread.sleep(1000);
+                        } catch (InterruptedException e) {
+                            break;
                         }
-                    });
-
-                    try {
-                        responseObj =
-                            recursivelyConsolidate(seqResponses, estimator, mapper, 500_000);
-                    } finally {
-                        consolidationDone.set(true);
-                        fakeProgress.cancel(true);
+                        if (!analysisDone.get()) {
+                            p = Math.min(95, p + 5);
+                            progressMap.put(
+                                id,
+                                new ProgressState(p, "Analyzing conversation with Gemini...")
+                            );
+                        }
                     }
+                });
+
+                AnalysisResponse responseObj;
+                try {
+                    responseObj = analyzerService.analyze(transcript);
+                } finally {
+                    analysisDone.set(true);
+                    progressTicker.cancel(true);
                 }
 
                 progressMap.put(id, new ProgressState(100, "Done"));
 
                 String jsonResponse = mapper.writeValueAsString(responseObj);
 
-                // Try to extract shortTitle for shortTitlePath caching
+                // Cache shortTitle
                 try {
                     String title = responseObj.shortTitle();
                     if (title != null && !title.isEmpty()) {
@@ -381,12 +363,9 @@ public class AnalysisController {
                     }
                 } catch (Exception e) {}
 
-                try {
-                    Files.writeString(summaryJsonPath, jsonResponse);
-                    return jsonResponse;
-                } catch (Exception e) {
-                    throw new Exception("Invalid JSON response");
-                }
+                // Cache summary.json
+                Files.writeString(summaryJsonPath, jsonResponse);
+                return jsonResponse;
             } catch (Exception e) {
                 System.err.println("Exception caught during analysis:");
                 e.printStackTrace();
@@ -403,38 +382,6 @@ public class AnalysisController {
         } finally {
             runningTasks.remove(id);
         }
-    }
-
-    private AnalysisResponse recursivelyConsolidate(
-        List<AnalysisResponse> responses,
-        TokenCountEstimator estimator,
-        ObjectMapper mapper,
-        int maxTokens
-    ) throws Exception {
-        String json = mapper.writeValueAsString(responses);
-        try {
-            int tokens = estimator.estimateTokenCountInText(json);
-            if (tokens <= maxTokens) {
-                return analyzerService.consolidateAnalysis(json);
-            }
-        } catch (Exception e) {
-            // fallback
-        }
-
-        int mid = responses.size() / 2;
-        AnalysisResponse r1 = recursivelyConsolidate(
-            responses.subList(0, mid),
-            estimator,
-            mapper,
-            maxTokens
-        );
-        AnalysisResponse r2 = recursivelyConsolidate(
-            responses.subList(mid, responses.size()),
-            estimator,
-            mapper,
-            maxTokens
-        );
-        return analyzerService.consolidateAnalysis(mapper.writeValueAsString(List.of(r1, r2)));
     }
 
     private List<String> deduplicateSequence(List<String> sequence) {

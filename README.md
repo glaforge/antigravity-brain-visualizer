@@ -37,7 +37,7 @@ Additionally, it leverages Google's Gemini LLMs (`gemini-3.8-flash`) to automati
     *   **Output Tokens**: Model responses (`PLANNER_RESPONSE`, `MESSAGE`) and serialized tool call arguments.
 *   **Interactive Token Breakdown**: An expandable distribution chart in the stats panel displaying the proportional split between Input (cyan), Thinking (purple), and Output (green) tokens.
 *   **Estimated Financial Cost**: Projects overall session costs based on Gemini 3.8 Flash pricing tiers ($0.75 / 1M input tokens, $3.75 / 1M output & thinking tokens).
-*   **Backend Chunking Estimation**: In `AnalysisController`, uses LangChain4j's `TokenCountEstimator` (`GoogleGenAiTokenCountEstimator`) to calculate precise token counts, ensuring multi-turn transcripts are safely divided into token-bounded chunks prior to LLM analysis.
+*   **Single-Pass Analysis Architecture**: In `AnalysisController`, leverages Gemini 3.8 Flash's native 1,000,000-token context window to analyze complete multi-turn sessions in a single high-fidelity pass without lossy chunk slicing or Map-Reduce consolidation.
 
 **Tabbed Session Inspection**
 *   **📜 Transcript Tab**: The full chronological sequence of user requests, model reasoning, tool invocations, and system actions.
@@ -65,7 +65,7 @@ Additionally, it leverages Google's Gemini LLMs (`gemini-3.8-flash`) to automati
 
 **AI Summarization & Interactive Assistant**
 *   **Gemini 3.8 Flash Integration**: Powered by Google's `gemini-3.8-flash` via LangChain4j for fast, high-quality session analysis with strict schema enforcement via Jackson.
-*   **Session Summaries**: Recursively chunks, analyzes, and consolidates transcripts to produce executive summaries, key decisions, issues encountered, and actionable recommendations.
+*   **Session Summaries**: Analyzes enriched session transcripts in a single pass to produce executive summaries, chronological conversation flows, agent action breakdowns, issues encountered with circumventions, and actionable recommendations.
 *   **Interactive Session Assistant**: A sliding right drawer (`Cmd+K` / `Ctrl+K`) to chat with an AI assistant about the active session, specific step failures, or sequence execution details.
 *   **Contextual Triggers & Scope Chips**: Click `💬 Ask Chat` on sequence headers, error step cards, or the summary section to automatically pin focused context chips (`📍 Context: Sequence #3`).
 *   **Agent Skill Generator**: Generates custom agent guardrails/skills strictly adhering to the [Agent Skills Specification](https://agentskills.io/specification) with YAML frontmatter and one-click `📋 Copy Skill Template` buttons.
@@ -80,7 +80,7 @@ Additionally, it leverages Google's Gemini LLMs (`gemini-3.8-flash`) to automati
 This project prioritizes a lightweight, high-performance, and maintainable architecture:
 
 - **Backend**: Built with [Micronaut](https://micronaut.io/) (Java). It serves the frontend static assets and provides native REST APIs to securely read and parse local filesystem transcripts, Git snapshot repos, and artifact files.
-- **AI Integration**: Powered by [LangChain4j](https://github.com/langchain4j/langchain4j) connecting directly to [Google Gemini models](https://docs.langchain4j.dev/integrations/language-models/google-genai/) (`gemini-3.8-flash`). It uses chunking and recursive consolidation for session summarization, alongside contextual session Q&A and skill generation.
+- **AI Integration**: Powered by [LangChain4j](https://github.com/langchain4j/langchain4j) connecting directly to [Google Gemini models](https://docs.langchain4j.dev/integrations/language-models/google-genai/) (`gemini-3.8-flash`). It uses single-pass enriched context analysis for session summarization, alongside contextual session Q&A and skill generation.
 - **Diff Viewer**: Integrated with [diff2html](https://diff2html.xyz/) custom-styled with dark-mode overrides, synchronized sticky gutters, and split/unified toggling.
 - **Frontend**: A zero-build Vanilla JavaScript, HTML, and CSS single-page application. It avoids heavy framework overhead, relying instead on standard browser DOM APIs, customized CSS grid/flexbox layouts, and minimal dependencies (`marked.js` and `highlight.js`) for Markdown rendering and code syntax highlighting.
 
