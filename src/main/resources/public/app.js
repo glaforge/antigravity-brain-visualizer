@@ -24,6 +24,9 @@ import { renderMessagesView } from "./modules/messages.js";
 
 let allConversations = [];
 let sortDescending = true;
+let sortCriteria = "time";
+let viewMode = "all";
+let nestSubagents = true;
 
 document.addEventListener("DOMContentLoaded", async () => {
   initUI();
@@ -100,11 +103,7 @@ document.addEventListener("DOMContentLoaded", async () => {
 
   const flavorSelect = document.getElementById("flavor-select");
   await loadFlavors(flavorSelect);
-
-  const savedFlavor = localStorage.getItem("agy-flavor");
-  if (savedFlavor) {
-    flavorSelect.value = savedFlavor;
-  }
+  state.currentFlavor = flavorSelect.value;
 
   const sidebarToggleBtn = document.getElementById("sidebar-toggle-btn");
   function toggleSidebar() {
@@ -201,6 +200,30 @@ document.addEventListener("DOMContentLoaded", async () => {
     if (tabsContainer) tabsContainer.style.display = "none";
     switchView(transcriptBtn, transcriptView);
   });
+
+  const projectFilterSelect = document.getElementById("project-filter-select");
+  if (projectFilterSelect) {
+    projectFilterSelect.addEventListener("change", () => {
+      viewMode = projectFilterSelect.value;
+      renderConversationsList();
+    });
+  }
+
+  const nestSubagentsToggle = document.getElementById("nest-subagents-toggle");
+  if (nestSubagentsToggle) {
+    nestSubagentsToggle.addEventListener("change", () => {
+      nestSubagents = nestSubagentsToggle.checked;
+      renderConversationsList();
+    });
+  }
+
+  const sortCriteriaSelect = document.getElementById("sort-criteria-select");
+  if (sortCriteriaSelect) {
+    sortCriteriaSelect.addEventListener("change", () => {
+      sortCriteria = sortCriteriaSelect.value;
+      renderConversationsList();
+    });
+  }
 
   function toggleAnalysis() {
     const summaryHeader = document.getElementById("ai-summary-header");
@@ -316,14 +339,120 @@ async function loadFlavors(selectElement) {
     const res = await fetch(`/api/brain/flavors`);
     const flavors = await res.json();
     selectElement.innerHTML = "";
+
+    const priority = {
+      antigravity: 1,
+      "antigravity-cli": 2,
+      "antigravity-ide": 3,
+      jetski: 4,
+    };
+    flavors.sort((a, b) => (priority[a] || 99) - (priority[b] || 99));
+
+    const FLAVOR_LABELS = {
+      antigravity: "Antigravity 2.0 (Desktop)",
+      "antigravity-cli": "Antigravity CLI (agy)",
+      "antigravity-ide": "Antigravity IDE",
+      jetski: "Jetski",
+    };
+
     flavors.forEach((f) => {
       const opt = document.createElement("option");
       opt.value = f;
-      opt.text = f;
+      opt.text = FLAVOR_LABELS[f] || f;
       selectElement.appendChild(opt);
     });
+
+    const savedFlavor = localStorage.getItem("agy-flavor");
+    if (savedFlavor && flavors.includes(savedFlavor)) {
+      selectElement.value = savedFlavor;
+    } else if (flavors.includes("antigravity")) {
+      selectElement.value = "antigravity";
+    }
   } catch (e) {
     console.error("Failed to load flavors", e);
+  }
+}
+
+function getProjectKey(conv) {
+  if (conv.projectName && conv.projectName.trim() !== "") {
+    return conv.projectName.trim();
+  }
+  if (conv.workspaceUri && conv.workspaceUri.trim() !== "") {
+    const parts = conv.workspaceUri.split(/[/\\]/);
+    return parts[parts.length - 1] || conv.workspaceUri.trim();
+  }
+  return "General / No Project";
+}
+
+function formatRelativeTime(timestamp) {
+  if (!timestamp || timestamp <= 0) return "Unknown time";
+  const diffMs = Date.now() - timestamp;
+  const diffMin = Math.floor(diffMs / (1000 * 60));
+  const diffHour = Math.floor(diffMs / (1000 * 60 * 60));
+  const diffDay = Math.floor(diffMs / (1000 * 60 * 60 * 24));
+  if (diffDay > 0) return diffDay === 1 ? "1d ago" : `${diffDay}d ago`;
+  if (diffHour > 0) return diffHour === 1 ? "1h ago" : `${diffHour}h ago`;
+  if (diffMin > 0) return diffMin === 1 ? "1m ago" : `${diffMin}m ago`;
+  return "just now";
+}
+
+function getStatusInfo(status) {
+  if (!status) return { className: "status-idle", label: "Idle / Done" };
+  const s = status.toUpperCase();
+  if (s.includes("RUNNING")) {
+    return { className: "status-running", label: "Running" };
+  }
+  if (s.includes("ERROR") || s.includes("FAILED") || s.includes("KILLED")) {
+    return { className: "status-error", label: "Error / Killed" };
+  }
+  return { className: "status-idle", label: "Idle / Done" };
+}
+
+function updateProjectFilterDropdown() {
+  const projectSelect = document.getElementById("project-filter-select");
+  if (!projectSelect) return;
+
+  const currentVal = projectSelect.value;
+  const projectMap = new Map();
+
+  allConversations.forEach((c) => {
+    const key = getProjectKey(c);
+    if (key !== "General / No Project") {
+      if (!projectMap.has(key)) {
+        projectMap.set(key, c.workspaceUri || "");
+      }
+    }
+  });
+
+  const sortedProjects = Array.from(projectMap.keys()).sort((a, b) =>
+    a.localeCompare(b, undefined, { sensitivity: "base" })
+  );
+
+  projectSelect.innerHTML = `
+    <option value="all">📁 All Projects (Timeline)</option>
+    <option value="__grouped__">📂 Group by Project</option>
+  `;
+
+  if (sortedProjects.length > 0) {
+    const optGroup = document.createElement("optgroup");
+    optGroup.label = "Filter by Project";
+    sortedProjects.forEach((proj) => {
+      const opt = document.createElement("option");
+      opt.value = proj;
+      opt.textContent = `📦 ${proj}`;
+      const uri = projectMap.get(proj);
+      if (uri) opt.title = uri;
+      optGroup.appendChild(opt);
+    });
+    projectSelect.appendChild(optGroup);
+  }
+
+  if (Array.from(projectSelect.options).some((o) => o.value === currentVal)) {
+    projectSelect.value = currentVal;
+    viewMode = currentVal;
+  } else {
+    projectSelect.value = "all";
+    viewMode = "all";
   }
 }
 
@@ -335,11 +464,149 @@ async function loadConversations() {
   try {
     const res = await fetch(`/api/brain/conversations?flavor=${flavor}`);
     allConversations = await res.json();
+    updateProjectFilterDropdown();
     renderConversationsList();
+
+    const initialHash = window.location.hash.substring(1);
+    if (initialHash && !state.currentConversationId) {
+      navigateToConversation(initialHash, false);
+    }
   } catch (e) {
     list.innerHTML =
       '<div class="loading-state" style="padding:16px;">Error loading sessions. Is the backend running?</div>';
   }
+}
+
+function sortConversations(list) {
+  return [...list].sort((a, b) => {
+    let diff = 0;
+    if (sortCriteria === "steps") {
+      diff = (b.stepCount || 0) - (a.stepCount || 0);
+    } else {
+      const aTime = parseInt(a.updatedAt || 0, 10);
+      const bTime = parseInt(b.updatedAt || 0, 10);
+      diff = bTime - aTime;
+    }
+    return sortDescending ? diff : -diff;
+  });
+}
+
+function createConvItemElement(conv, isNestedChild = false) {
+  const div = document.createElement("div");
+  div.className = `conv-item ${isNestedChild ? "is-subagent" : ""}`;
+  div.dataset.id = conv.id;
+  div.dataset.summary = conv.summary;
+  div.dataset.preview = conv.preview || "";
+  div.dataset.updatedAt = conv.updatedAt || "0";
+  div.dataset.stepCount = conv.stepCount || 0;
+  div.dataset.status = conv.status || "";
+  div.dataset.workspaceUri = conv.workspaceUri || "";
+  div.dataset.agentName = conv.agentName || "";
+  div.dataset.parentConversationId = conv.parentConversationId || "";
+  div.dataset.isSubagent = conv.isSubagent ? "true" : "false";
+  div.dataset.projectId = conv.projectId || "";
+  div.dataset.projectName = conv.projectName || "";
+
+  const statusInfo = getStatusInfo(conv.status);
+  const timeRel = formatRelativeTime(parseInt(conv.updatedAt, 10));
+
+  let subagentTag = "";
+  if (conv.agentName) {
+    subagentTag = `<span class="conv-subagent-tag">${escapeHtml(
+      conv.agentName
+    )}</span>`;
+  }
+
+  let projectTag = "";
+  const projKey = getProjectKey(conv);
+  if (projKey && projKey !== "General / No Project") {
+    projectTag = `<span class="conv-project-tag" title="Project: ${escapeHtml(
+      projKey
+    )}">📦 ${escapeHtml(projKey)}</span>`;
+  }
+
+  let stepsBadge = "";
+  if (conv.stepCount > 0) {
+    stepsBadge = `<span class="conv-steps-badge">${conv.stepCount} steps</span>`;
+  }
+
+  div.innerHTML = `
+    <div class="conv-title-row">
+      <span class="conv-status-dot ${statusInfo.className}" title="${
+    statusInfo.label
+  }"></span>
+      <span class="conv-title-text" title="${escapeHtml(
+        conv.summary
+      )}">${escapeHtml(conv.summary)}</span>
+      ${stepsBadge}
+    </div>
+    <div class="conv-meta-row">
+      <span>${timeRel}</span>
+      ${projectTag}
+      ${subagentTag}
+      <span class="conv-hash-id">${conv.id.substring(0, 8)}</span>
+    </div>
+  `;
+
+  return div;
+}
+
+function renderConversationTree(container, items, nestEnabled) {
+  if (!nestEnabled) {
+    items.forEach((conv) => {
+      container.appendChild(createConvItemElement(conv, false));
+    });
+    return;
+  }
+
+  // Build parent-to-children relationship
+  const itemMap = new Map();
+  items.forEach((c) => itemMap.set(c.id, c));
+
+  const childrenMap = new Map();
+  const topLevel = [];
+
+  items.forEach((c) => {
+    if (c.parentConversationId && itemMap.has(c.parentConversationId)) {
+      if (!childrenMap.has(c.parentConversationId)) {
+        childrenMap.set(c.parentConversationId, []);
+      }
+      childrenMap.get(c.parentConversationId).push(c);
+    } else {
+      topLevel.push(c);
+    }
+  });
+
+  topLevel.forEach((parent) => {
+    container.appendChild(createConvItemElement(parent, false));
+
+    const children = childrenMap.get(parent.id);
+    if (children && children.length > 0) {
+      const wrapper = document.createElement("div");
+      wrapper.className = "subagents-wrapper";
+
+      const toggleBtn = document.createElement("button");
+      toggleBtn.className = "subagents-toggle-btn";
+      toggleBtn.dataset.count = children.length;
+      toggleBtn.innerHTML = `▼ ${children.length} subagent${
+        children.length > 1 ? "s" : ""
+      }`;
+      wrapper.appendChild(toggleBtn);
+
+      const childrenContainer = document.createElement("div");
+      childrenContainer.className = "subagents-children-container";
+      childrenContainer.style.display = "flex";
+      childrenContainer.style.flexDirection = "column";
+      childrenContainer.style.gap = "6px";
+
+      children.forEach((child) => {
+        childrenContainer.appendChild(createConvItemElement(child, true));
+      });
+
+      wrapper.appendChild(childrenContainer);
+      container.appendChild(wrapper);
+    }
+  });
 }
 
 function renderConversationsList() {
@@ -353,13 +620,17 @@ function renderConversationsList() {
   if (searchTerm) {
     filtered = filtered.filter(
       (c) =>
-        c.summary.toLowerCase().includes(searchTerm) ||
-        c.id.toLowerCase().includes(searchTerm)
+        (c.summary && c.summary.toLowerCase().includes(searchTerm)) ||
+        (c.id && c.id.toLowerCase().includes(searchTerm)) ||
+        (c.projectName && c.projectName.toLowerCase().includes(searchTerm)) ||
+        (c.workspaceUri && c.workspaceUri.toLowerCase().includes(searchTerm)) ||
+        (c.agentName && c.agentName.toLowerCase().includes(searchTerm))
     );
   }
 
-  if (!sortDescending) {
-    filtered.reverse();
+  // Handle specific project filtering
+  if (viewMode !== "all" && viewMode !== "__grouped__") {
+    filtered = filtered.filter((c) => getProjectKey(c) === viewMode);
   }
 
   if (filtered.length === 0) {
@@ -367,19 +638,103 @@ function renderConversationsList() {
     return;
   }
 
-  filtered.forEach((conv) => {
-    const div = document.createElement("div");
-    div.className = "conv-item";
-    div.dataset.id = conv.id;
-    div.dataset.summary = conv.summary;
-    div.dataset.updatedAt = conv.updatedAt || "0";
-    div.innerHTML = `<div class=\"conv-id\">${escapeHtml(conv.summary)}</div>`;
-    list.appendChild(div);
-  });
+  if (viewMode === "__grouped__") {
+    // Group by project
+    const groups = new Map();
+    filtered.forEach((c) => {
+      const projKey = getProjectKey(c);
+      if (!groups.has(projKey)) {
+        groups.set(projKey, []);
+      }
+      groups.get(projKey).push(c);
+    });
 
-  // Event Delegation for conversation selection
+    const sortedGroups = Array.from(groups.entries()).sort((a, b) => {
+      if (a[0] === "General / No Project") return 1;
+      if (b[0] === "General / No Project") return -1;
+      return a[0].localeCompare(b[0], undefined, { sensitivity: "base" });
+    });
+
+    sortedGroups.forEach(([projName, groupItems]) => {
+      const groupEl = document.createElement("div");
+      groupEl.className = "project-group";
+
+      const sampleItem = groupItems.find((i) => i.workspaceUri);
+      const titleAttr = sampleItem ? sampleItem.workspaceUri : projName;
+
+      const headerEl = document.createElement("div");
+      headerEl.className = "project-group-header";
+      headerEl.title = titleAttr;
+      headerEl.innerHTML = `
+        <div class="project-group-title">
+          <span>📂</span>
+          <span style="font-weight:600;">${escapeHtml(projName)}</span>
+          <span class="project-group-count">${groupItems.length}</span>
+        </div>
+        <svg class="project-group-chevron" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+          <polyline points="6 9 12 15 18 9"></polyline>
+        </svg>
+      `;
+
+      const itemsContainer = document.createElement("div");
+      itemsContainer.className = "project-group-items";
+
+      const sortedGroupItems = sortConversations(groupItems);
+      renderConversationTree(itemsContainer, sortedGroupItems, nestSubagents);
+
+      groupEl.appendChild(headerEl);
+      groupEl.appendChild(itemsContainer);
+      list.appendChild(groupEl);
+    });
+  } else {
+    // Flat timeline or single filtered project
+    const sorted = sortConversations(filtered);
+    renderConversationTree(list, sorted, nestSubagents);
+  }
+
+  // Event Delegation for conversation selection & toggles
   if (!list.dataset.listenerAttached) {
     list.addEventListener("click", (e) => {
+      // Check subagents toggle button
+      const toggleBtn = e.target.closest(".subagents-toggle-btn");
+      if (toggleBtn) {
+        e.stopPropagation();
+        const wrapper = toggleBtn.closest(".subagents-wrapper");
+        if (wrapper) {
+          const childrenContainer = wrapper.querySelector(
+            ".subagents-children-container"
+          );
+          if (childrenContainer) {
+            const isHidden = childrenContainer.style.display === "none";
+            childrenContainer.style.display = isHidden ? "flex" : "none";
+            toggleBtn.innerHTML = isHidden
+              ? `▼ ${toggleBtn.dataset.count} subagent${
+                  toggleBtn.dataset.count > 1 ? "s" : ""
+                }`
+              : `▶ ${toggleBtn.dataset.count} subagent${
+                  toggleBtn.dataset.count > 1 ? "s" : ""
+                }`;
+          }
+        }
+        return;
+      }
+
+      // Check project group header toggle
+      const groupHeader = e.target.closest(".project-group-header");
+      if (groupHeader) {
+        e.stopPropagation();
+        const group = groupHeader.closest(".project-group");
+        if (group) {
+          const itemsContainer = group.querySelector(".project-group-items");
+          const chevron = group.querySelector(".project-group-chevron");
+          if (itemsContainer) {
+            itemsContainer.classList.toggle("collapsed");
+            if (chevron) chevron.classList.toggle("collapsed");
+          }
+        }
+        return;
+      }
+
       const item = e.target.closest(".conv-item");
       if (item && item.dataset.id) {
         selectConversation(item.dataset.id, item);
@@ -403,25 +758,59 @@ function renderConversationsList() {
             year: "numeric",
             month: "long",
             day: "numeric",
+            hour: "2-digit",
+            minute: "2-digit",
           });
-
-          const diffMs = Date.now() - timestamp;
-          const diffMin = Math.floor(diffMs / (1000 * 60));
-          const diffHour = Math.floor(diffMs / (1000 * 60 * 60));
-          const diffDay = Math.floor(diffMs / (1000 * 60 * 60 * 24));
-
-          let relStr;
-          if (diffDay > 0)
-            relStr = diffDay === 1 ? "1 day ago" : `${diffDay} days ago`;
-          else if (diffHour > 0)
-            relStr = diffHour === 1 ? "1 hour ago" : `${diffHour} hours ago`;
-          else if (diffMin > 0)
-            relStr = diffMin === 1 ? "1 minute ago" : `${diffMin} minutes ago`;
-          else relStr = "just now";
-
-          timeStr = `${dateText} (${relStr})`;
+          const rel = formatRelativeTime(timestamp);
+          timeStr = `${dateText} (${rel})`;
         }
-        document.getElementById("popover-time").innerHTML = timeStr;
+        document.getElementById("popover-time").innerText = timeStr;
+
+        const statusInfo = getStatusInfo(item.dataset.status);
+        const statusBadge = document.getElementById("popover-status-badge");
+        if (statusBadge) {
+          statusBadge.innerHTML = `<span class="conv-status-dot ${statusInfo.className}"></span> ${statusInfo.label}`;
+        }
+
+        const stepsBadge = document.getElementById("popover-steps-badge");
+        if (stepsBadge) {
+          const stepCount = parseInt(item.dataset.stepCount, 10) || 0;
+          stepsBadge.innerText = `${stepCount} steps`;
+        }
+
+        const projectRow = document.getElementById("popover-project-row");
+        const projectEl = document.getElementById("popover-project");
+        if (projectRow && projectEl) {
+          const ws = item.dataset.workspaceUri;
+          const projName = item.dataset.projectName;
+          if (projName && ws) {
+            projectEl.innerText = `${projName} (${ws})`;
+            projectRow.style.display = "block";
+          } else if (projName) {
+            projectEl.innerText = projName;
+            projectRow.style.display = "block";
+          } else if (ws && ws.trim()) {
+            projectEl.innerText = ws;
+            projectRow.style.display = "block";
+          } else {
+            projectRow.style.display = "none";
+          }
+        }
+
+        const subagentRow = document.getElementById("popover-subagent-row");
+        const subagentEl = document.getElementById("popover-subagent");
+        if (subagentRow && subagentEl) {
+          if (item.dataset.isSubagent === "true") {
+            const agentName = item.dataset.agentName || "agent";
+            const parentId = item.dataset.parentConversationId || "";
+            subagentEl.innerText = `Subagent: ${agentName}${
+              parentId ? ` (Parent: ${parentId.substring(0, 8)})` : ""
+            }`;
+            subagentRow.style.display = "block";
+          } else {
+            subagentRow.style.display = "none";
+          }
+        }
 
         popover.classList.remove("hidden");
       }
@@ -433,7 +822,6 @@ function renderConversationsList() {
         let top = e.clientY + 15;
         let left = e.clientX + 15;
 
-        // Prevent overflow off bottom/right edges
         if (top + popover.offsetHeight > window.innerHeight) {
           top = e.clientY - popover.offsetHeight - 15;
         }
@@ -527,11 +915,16 @@ async function selectConversation(id, element) {
   }
 
   const title = document.getElementById("current-session-title");
-  if (targetElement) {
-    title.innerText = targetElement.querySelector(".conv-id")?.innerText || id;
+  const conv = allConversations.find((c) => c.id === id);
+  if (conv && conv.summary) {
+    title.innerText = conv.summary;
+  } else if (targetElement) {
+    title.innerText =
+      targetElement.dataset.summary ||
+      targetElement.querySelector(".conv-title-text")?.innerText ||
+      id;
   } else {
-    const conv = allConversations.find((c) => c.id === id);
-    title.innerText = conv ? conv.summary : id;
+    title.innerText = id;
   }
 
   const subtitle = document.getElementById("current-session-id");

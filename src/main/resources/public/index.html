@@ -8,7 +8,7 @@
     <link rel="stylesheet"
         href="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.9.0/styles/tokyo-night-dark.min.css">
     <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/diff2html/bundles/css/diff2html.min.css">
-    <link rel="stylesheet" href="style.css">
+    <link rel="stylesheet" href="style.css?v=6">
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
     <link
@@ -30,7 +30,15 @@
                         <option value="antigravity-cli">Loading flavors...</option>
                     </select>
                 </div>
-                <div style="margin-top: 12px; padding: 0 24px; display: flex; gap: 8px;">
+                <div style="margin-top: 8px; padding: 0 24px;">
+                    <select id="project-filter-select"
+                        style="width: 100%; padding: 7px 8px; border-radius: 6px; background: rgba(30, 41, 59, 0.5); color: var(--text-primary); border: 1px solid var(--border-color); outline: none; font-size: 0.82rem;"
+                        title="Filter by Project or Group by Project">
+                        <option value="all">📁 All Projects (Timeline)</option>
+                        <option value="__grouped__">📂 Group by Project</option>
+                    </select>
+                </div>
+                <div style="margin-top: 10px; padding: 0 24px; display: flex; gap: 8px;">
                     <div style="position: relative; flex: 1; display: flex; align-items: center;">
                         <input type="text" id="conversation-search" placeholder="Search sessions..."
                             style="width: 100%; padding: 6px 28px 6px 12px; border-radius: 6px; background: rgba(30, 41, 59, 0.5); color: var(--text-primary); border: 1px solid var(--border-color); outline: none; font-size: 0.85rem;" />
@@ -55,7 +63,7 @@
                     </button>
                     <button id="sort-conversations-btn" class="icon-btn"
                         style="padding: 6px 8px; border-radius: 6px; background: rgba(30, 41, 59, 0.5); border: 1px solid var(--border-color); color: var(--text-primary); cursor: pointer; display: flex; align-items: center; justify-content: center;"
-                        title="Sort Oldest/Newest">
+                        title="Toggle Ascending/Descending Order">
                         <svg style="transition: transform 0.3s ease;" width="16" height="16" viewBox="0 0 24 24"
                             fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"
                             stroke-linejoin="round">
@@ -65,6 +73,20 @@
                             <path d="M7 4v16"></path>
                         </svg>
                     </button>
+                </div>
+                <div style="margin-top: 8px; padding: 0 24px; display: flex; align-items: center; justify-content: space-between; font-size: 0.78rem; color: var(--text-secondary);">
+                    <label style="display: flex; align-items: center; gap: 5px; cursor: pointer; user-select: none;" title="Nest subagents under parent conversations">
+                        <input type="checkbox" id="nest-subagents-toggle" checked style="accent-color: var(--accent-color); cursor: pointer;" />
+                        <span>Nest Subagents</span>
+                    </label>
+                    <div style="display: flex; align-items: center; gap: 4px;">
+                        <span style="font-size: 0.75rem;">Sort:</span>
+                        <select id="sort-criteria-select"
+                            style="padding: 2px 4px; border-radius: 4px; background: rgba(30, 41, 59, 0.5); color: var(--text-primary); border: 1px solid var(--border-color); font-size: 0.75rem; outline: none; cursor: pointer;">
+                            <option value="time">Time</option>
+                            <option value="steps">Steps</option>
+                        </select>
+                    </div>
                 </div>
             </div>
             <div class="conversations-list" id="conversations-list">
@@ -246,9 +268,16 @@
         style="position: fixed; z-index: 1000; background: rgba(15, 23, 42, 0.95); border: 1px solid var(--border-color); border-radius: 8px; padding: 12px; box-shadow: 0 10px 25px rgba(0,0,0,0.5); pointer-events: none; width: 380px; color: var(--text-primary); backdrop-filter: blur(8px); -webkit-backdrop-filter: blur(8px);">
         <div id="popover-title" style="font-weight: 600; font-size: 0.95rem; margin-bottom: 8px; line-height: 1.4;">
         </div>
-        <div
-            style="font-size: 0.8rem; color: var(--text-secondary); margin-bottom: 8px; display: flex; align-items: center; gap: 6px;">
-            <span style="opacity: 0.7;">📅</span> <span id="popover-time"></span>
+        <div style="font-size: 0.8rem; color: var(--text-secondary); margin-bottom: 6px; display: flex; align-items: center; gap: 8px; flex-wrap: wrap;">
+            <span id="popover-status-badge"></span>
+            <span id="popover-steps-badge" style="background: rgba(255,255,255,0.06); padding: 2px 6px; border-radius: 4px; font-size: 0.75rem;"></span>
+            <span id="popover-time"></span>
+        </div>
+        <div id="popover-project-row" style="font-size: 0.78rem; color: var(--text-secondary); margin-bottom: 6px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;">
+            <span style="opacity: 0.7;">📁</span> <span id="popover-project"></span>
+        </div>
+        <div id="popover-subagent-row" style="font-size: 0.78rem; color: var(--text-secondary); margin-bottom: 6px; display: none;">
+            <span style="opacity: 0.7;">🤖</span> <span id="popover-subagent"></span>
         </div>
         <div
             style="font-size: 0.75rem; font-family: var(--font-mono); color: var(--text-secondary); opacity: 0.8; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; width: 100%; box-sizing: border-box;">
@@ -256,7 +285,7 @@
         </div>
     </div>
 
-    <script type="module" src="app.js?v=2"></script>
+    <script type="module" src="app.js?v=7"></script>
 </body>
 
 </html>

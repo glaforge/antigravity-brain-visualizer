@@ -204,14 +204,33 @@ export async function triggerAnalysis(sessionId, force) {
     state.summaryCache[sessionId] = aiText.innerHTML;
 
     if (data.shortTitle) {
-      const sidebarItem = document.querySelector(
-        `.conv-item[data-id="${sessionId}"] .conv-id`
+      const itemEl = document.querySelector(
+        `.conv-item[data-id="${sessionId}"]`
       );
-      if (sidebarItem) {
-        sidebarItem.innerText = data.shortTitle;
+      const existingSummary = itemEl?.dataset.summary || "";
+      const isGenericTitle =
+        !existingSummary ||
+        existingSummary.startsWith("Conversation ") ||
+        existingSummary === sessionId;
+
+      // Only update conversation title if there was no meaningful title from SQLite
+      if (isGenericTitle) {
+        const sidebarTitle = itemEl?.querySelector(".conv-title-text");
+        if (sidebarTitle) {
+          sidebarTitle.innerText = data.shortTitle;
+        }
+        if (itemEl) {
+          itemEl.dataset.summary = data.shortTitle;
+        }
+        const titleEl = document.getElementById("current-session-title");
+        if (
+          titleEl &&
+          (titleEl.innerText === sessionId ||
+            titleEl.innerText.startsWith("Conversation "))
+        ) {
+          titleEl.innerText = data.shortTitle;
+        }
       }
-      document.getElementById("current-session-title").innerText =
-        data.shortTitle;
     }
   } catch (e) {
     aiText.innerHTML =

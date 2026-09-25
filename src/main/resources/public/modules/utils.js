@@ -15,7 +15,7 @@
  */
 export const state = {
   currentConversationId: null,
-  currentFlavor: "antigravity-cli",
+  currentFlavor: "antigravity",
   activeFilters: {
     userQueries: false,
     toolsCalled: false,

@@ -24,10 +24,11 @@ Additionally, it leverages Google's Gemini LLMs (`gemini-3.8-flash`) to automati
 ### Key Features
 
 **Session Management**
-*   **Multi-Flavor Brain Discovery**: Scans and loads agent sessions across `.gemini/antigravity`, `.gemini/antigravity-cli`, `.gemini/antigravity-ide`, and `.gemini/jetski`.
-*   **Search & Filtering**: Includes instant text search to find sessions by query, and flavor selector dropdowns.
-*   **Sorting & Refreshing**: Toggle controls to sort sessions chronologically and a refresh button to detect newly spawned sessions.
-*   **Session Metadata**: Hovering over a session displays an overview popover containing metadata such as step counts, timestamps, and session IDs.
+*   **Fast SQLite & Brain Discovery**: Directly indexes Antigravity's centralized conversation database (`conversation_summaries.db`) for instantaneous session loading, official conversation titles, and step counts across `.gemini/antigravity` (Desktop), `.gemini/antigravity-cli`, `.gemini/antigravity-ide`, and `.gemini/jetski`.
+*   **Project Grouping & Filtering**: Filter sessions by official Antigravity project or group sessions into collapsible project folders with live session counts.
+*   **Subagent Tree Nesting**: Toggle hierarchical subagent nesting to collapse secondary agent invocations into expandable subagent accordions under their parent sessions.
+*   **Search & Multi-Criteria Sorting**: Search sessions by title, ID, project, or agent name. Sort sessions chronologically or by total step count (complexity) with ascending/descending toggles.
+*   **Session Metadata**: Hovering over a session displays an overview popover containing status badges, step counts, official project name, timestamps, and session IDs.
 *   **Adjustable Layout**: The sidebar features a drag handle to resize its width, a toggle button, and a global keyboard shortcut (`Cmd+B` / `Ctrl+B`) to collapse or expand it.
 
 **Token & Cost Estimation**

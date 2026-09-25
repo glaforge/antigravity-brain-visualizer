@@ -31,14 +31,22 @@ import java.nio.file.Path;
 import java.nio.file.Paths;
 import java.util.ArrayList;
 import java.util.HashMap;
+import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
+import java.util.Set;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
 
 @Controller("/api/brain")
 public class BrainController {
+
+    private final ConversationDatabaseService dbService;
+
+    public BrainController(ConversationDatabaseService dbService) {
+        this.dbService = dbService;
+    }
 
     private Path getBrainPath(String flavor) {
         if (flavor == null || flavor.isEmpty()) flavor = "antigravity-cli";
@@ -79,16 +87,122 @@ public class BrainController {
 
     @ExecuteOn(TaskExecutors.IO)
     @Get("/conversations")
-    public List<Map<String, String>> listConversations(@QueryValue Optional<String> flavor) {
-        Path brainPath = getBrainPath(flavor.orElse("antigravity-cli"));
+    public List<ConversationSummary> listConversations(@QueryValue Optional<String> flavor) {
+        String currentFlavor = flavor.orElse("antigravity-cli");
+        Path brainPath = getBrainPath(currentFlavor);
+        Optional<Path> dbPathOpt = dbService.getDatabasePath(currentFlavor);
+
+        if (dbPathOpt.isPresent()) {
+            List<ConversationSummary> dbList = dbService.listConversationsFromDb(dbPathOpt.get());
+            if (!dbList.isEmpty()) {
+                List<ConversationSummary> verified = new ArrayList<>();
+                Set<String> seenIds = new HashSet<>();
+
+                for (ConversationSummary c : dbList) {
+                    Path convDir = brainPath.resolve(c.id());
+                    if (Files.exists(convDir)) {
+                        seenIds.add(c.id());
+                        String updatedAt = c.updatedAt();
+                        if (updatedAt == null || updatedAt.equals("0")) {
+                            Path transcriptPath = resolveTranscriptPath(convDir);
+                            if (transcriptPath != null) {
+                                try {
+                                    updatedAt =
+                                        String.valueOf(
+                                            Files.getLastModifiedTime(transcriptPath).toMillis()
+                                        );
+                                } catch (IOException ignored) {}
+                            }
+                        }
+                        verified.add(
+                            new ConversationSummary(
+                                c.id(),
+                                c.summary(),
+                                c.preview(),
+                                c.stepCount(),
+                                updatedAt,
+                                c.status(),
+                                c.workspaceUri(),
+                                c.parentConversationId(),
+                                c.nestingDepth(),
+                                c.agentName(),
+                                c.isSubagent(),
+                                c.projectId(),
+                                c.projectName()
+                            )
+                        );
+                    }
+                }
+
+                // Merge unindexed sessions found directly in the filesystem
+                if (Files.exists(brainPath)) {
+                    try (Stream<Path> paths = Files.list(brainPath)) {
+                        paths
+                            .filter(Files::isDirectory)
+                            .forEach(p -> {
+                                String id = p.getFileName().toString();
+                                if (!seenIds.contains(id)) {
+                                    Path transcriptPath = resolveTranscriptPath(p);
+                                    if (transcriptPath != null) {
+                                        try {
+                                            if (Files.size(transcriptPath) > 0) {
+                                                long modified = Files
+                                                    .getLastModifiedTime(transcriptPath)
+                                                    .toMillis();
+                                                String fallbackSummary =
+                                                    extractSummaryFromTranscript(p);
+                                                verified.add(
+                                                    new ConversationSummary(
+                                                        id,
+                                                        fallbackSummary,
+                                                        "",
+                                                        0,
+                                                        String.valueOf(modified),
+                                                        "",
+                                                        "",
+                                                        "",
+                                                        0,
+                                                        "",
+                                                        false,
+                                                        "",
+                                                        ""
+                                                    )
+                                                );
+                                            }
+                                        } catch (IOException ignored) {}
+                                    }
+                                }
+                            });
+                    } catch (IOException ignored) {}
+                }
+
+                verified.sort((a, b) ->
+                    Long.compare(
+                        Long.parseLong(
+                            b.updatedAt() != null && !b.updatedAt().isBlank() ? b.updatedAt() : "0"
+                        ),
+                        Long.parseLong(
+                            a.updatedAt() != null && !a.updatedAt().isBlank() ? a.updatedAt() : "0"
+                        )
+                    )
+                );
+
+                return verified;
+            }
+        }
+
+        return listConversationsFromFilesystem(brainPath);
+    }
+
+    private List<ConversationSummary> listConversationsFromFilesystem(Path brainPath) {
         if (!Files.exists(brainPath)) return List.of();
 
         try (Stream<Path> paths = Files.list(brainPath)) {
             return paths
                 .filter(p -> {
                     if (!Files.isDirectory(p)) return false;
-                    Path transcriptPath = p.resolve(".system_generated/logs/transcript.jsonl");
-                    if (!Files.exists(transcriptPath)) return false;
+                    Path transcriptPath = resolveTranscriptPath(p);
+                    if (transcriptPath == null) return false;
                     try {
                         return Files.size(transcriptPath) > 0;
                     } catch (IOException e) {
@@ -97,65 +211,33 @@ public class BrainController {
                 })
                 .map(p -> {
                     String id = p.getFileName().toString();
-                    Map<String, String> info = new HashMap<>();
-                    info.put("id", id);
-
-                    String summary = "Conversation " + id.substring(0, 8);
-                    Path shortTitlePath = p.resolve(".system_generated/logs/short_title.txt");
-                    if (Files.exists(shortTitlePath)) {
-                        try {
-                            summary = Files.readString(shortTitlePath).trim();
-                        } catch (IOException e) {}
-                    } else {
-                        Path transcriptPath = p.resolve(".system_generated/logs/transcript.jsonl");
-                        if (Files.exists(transcriptPath)) {
-                            try (BufferedReader reader = Files.newBufferedReader(transcriptPath)) {
-                                ObjectMapper mapper = new ObjectMapper();
-                                String line;
-                                while ((line = reader.readLine()) != null) {
-                                    if (line.contains("\"USER_INPUT\"")) {
-                                        Map<String, Object> map = mapper.readValue(line, Map.class);
-                                        if ("USER_INPUT".equals(map.get("type"))) {
-                                            String content = (String) map.getOrDefault(
-                                                "content",
-                                                ""
-                                            );
-                                            content =
-                                                content.replaceAll("(?s)<USER_REQUEST>\\s*", "");
-                                            int endIdx = content.indexOf("</USER_REQUEST>");
-                                            if (endIdx != -1) {
-                                                content = content.substring(0, endIdx);
-                                            }
-                                            content = content.trim();
-                                            if (content.length() > 80) {
-                                                content = content.substring(0, 80) + "...";
-                                            }
-                                            if (!content.isEmpty()) {
-                                                summary = content;
-                                            }
-                                            break;
-                                        }
-                                    }
-                                }
-                            } catch (Exception e) {}
-                        }
-                    }
-
-                    info.put("summary", summary);
+                    String summary = extractSummaryFromTranscript(p);
+                    long modified = 0L;
                     try {
-                        Path transcriptPath = p.resolve(".system_generated/logs/transcript.jsonl");
-                        long modified = Files.getLastModifiedTime(transcriptPath).toMillis();
-                        info.put("updatedAt", String.valueOf(modified));
-                    } catch (IOException e) {
-                        info.put("updatedAt", "0");
-                    }
-                    return info;
+                        Path transcriptPath = resolveTranscriptPath(p);
+                        if (transcriptPath != null) {
+                            modified = Files.getLastModifiedTime(transcriptPath).toMillis();
+                        }
+                    } catch (IOException ignored) {}
+
+                    return new ConversationSummary(
+                        id,
+                        summary,
+                        "",
+                        0,
+                        String.valueOf(modified),
+                        "",
+                        "",
+                        "",
+                        0,
+                        "",
+                        false,
+                        "",
+                        ""
+                    );
                 })
                 .sorted((a, b) ->
-                    Long.compare(
-                        Long.parseLong(b.get("updatedAt")),
-                        Long.parseLong(a.get("updatedAt"))
-                    )
+                    Long.compare(Long.parseLong(b.updatedAt()), Long.parseLong(a.updatedAt()))
                 )
                 .collect(Collectors.toList());
         } catch (IOException e) {
@@ -164,19 +246,64 @@ public class BrainController {
         }
     }
 
+    private Path resolveTranscriptPath(Path convDir) {
+        Path full = convDir.resolve(".system_generated/logs/transcript_full.jsonl");
+        if (Files.exists(full)) return full;
+        Path regular = convDir.resolve(".system_generated/logs/transcript.jsonl");
+        if (Files.exists(regular)) return regular;
+        Path overview = convDir.resolve(".system_generated/logs/overview.txt");
+        if (Files.exists(overview)) return overview;
+        return null;
+    }
+
+    private String extractSummaryFromTranscript(Path p) {
+        String id = p.getFileName().toString();
+        String summary = "Conversation " + (id.length() > 8 ? id.substring(0, 8) : id);
+        Path shortTitlePath = p.resolve(".system_generated/logs/short_title.txt");
+        if (Files.exists(shortTitlePath)) {
+            try {
+                return Files.readString(shortTitlePath).trim();
+            } catch (IOException ignored) {}
+        }
+
+        Path transcriptPath = resolveTranscriptPath(p);
+        if (transcriptPath != null) {
+            try (BufferedReader reader = Files.newBufferedReader(transcriptPath)) {
+                ObjectMapper mapper = new ObjectMapper();
+                String line;
+                while ((line = reader.readLine()) != null) {
+                    if (line.contains("\"USER_INPUT\"")) {
+                        Map<String, Object> map = mapper.readValue(line, Map.class);
+                        if ("USER_INPUT".equals(map.get("type"))) {
+                            String content = (String) map.getOrDefault("content", "");
+                            content = content.replaceAll("(?s)<USER_REQUEST>\\s*", "");
+                            int endIdx = content.indexOf("</USER_REQUEST>");
+                            if (endIdx != -1) {
+                                content = content.substring(0, endIdx);
+                            }
+                            content = content.trim();
+                            if (content.length() > 80) {
+                                content = content.substring(0, 80) + "...";
+                            }
+                            if (!content.isEmpty()) {
+                                summary = content;
+                            }
+                            break;
+                        }
+                    }
+                }
+            } catch (Exception ignored) {}
+        }
+        return summary;
+    }
+
     @ExecuteOn(TaskExecutors.IO)
     @Get(value = "/conversations/{id}/transcript", produces = "application/json")
     public String getTranscript(@PathVariable String id, @QueryValue Optional<String> flavor)
         throws IOException {
         Path brainPath = getBrainPath(flavor.orElse("antigravity-cli"));
-        Path transcriptPath = brainPath
-            .resolve(id)
-            .resolve(".system_generated/logs/transcript_full.jsonl");
-        if (!Files.exists(transcriptPath)) {
-            transcriptPath =
-                brainPath.resolve(id).resolve(".system_generated/logs/transcript.jsonl");
-        }
-        if (!Files.exists(transcriptPath)) {
+        Path transcriptPath = resolveTranscriptPath(brainPath.resolve(id));
+        if (transcriptPath == null) {
             return "[]";
         }
 

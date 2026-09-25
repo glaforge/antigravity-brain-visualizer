@@ -46,6 +46,9 @@ dependencies {
     annotationProcessor("io.micronaut.langchain4j:micronaut-langchain4j-processor:2.0.1")
     implementation("io.micronaut.langchain4j:micronaut-langchain4j-core:2.0.1")
     
+    // SQLite JDBC Driver for fast conversation catalog retrieval
+    implementation("org.xerial:sqlite-jdbc:3.49.1.0")
+    
     // Dependencies end here
 }
 

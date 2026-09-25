@@ -42,6 +42,22 @@ class BrainControllerTest {
     }
 
     @Test
+    void testConversationsEndpoint() {
+        List<ConversationSummary> conversations = client
+            .toBlocking()
+            .retrieve(
+                HttpRequest.GET("/api/brain/conversations?flavor=antigravity"),
+                Argument.listOf(ConversationSummary.class)
+            );
+        Assertions.assertNotNull(conversations);
+        if (!conversations.isEmpty()) {
+            ConversationSummary first = conversations.get(0);
+            Assertions.assertNotNull(first.id());
+            Assertions.assertNotNull(first.summary());
+        }
+    }
+
+    @Test
     void testArtifactsEndpointNonExistent() {
         List<Map<String, Object>> artifacts = client
             .toBlocking()
