@@ -48,9 +48,34 @@ public class BrainController {
         this.dbService = dbService;
     }
 
-    private Path getBrainPath(String flavor) {
-        if (flavor == null || flavor.isEmpty()) flavor = "antigravity-cli";
-        return Paths.get(System.getProperty("user.home"), ".gemini", flavor, "brain");
+    public static final Set<String> ALLOWED_FLAVORS = Set.of(
+        "antigravity",
+        "antigravity-cli",
+        "antigravity-ide",
+        "jetski"
+    );
+
+    public static Path getBrainPath(String flavor) {
+        String cleanFlavor = (flavor != null && ALLOWED_FLAVORS.contains(flavor))
+            ? flavor
+            : "antigravity-cli";
+        return Paths
+            .get(System.getProperty("user.home"), ".gemini", cleanFlavor, "brain")
+            .normalize();
+    }
+
+    public static Optional<Path> resolveConversationDir(String id, Optional<String> flavor) {
+        if (
+            id == null || id.isBlank() || id.contains("/") || id.contains("\\") || id.contains("..")
+        ) {
+            return Optional.empty();
+        }
+        Path baseBrainPath = getBrainPath(flavor.orElse("antigravity-cli"));
+        Path convPath = baseBrainPath.resolve(id).normalize();
+        if (!baseBrainPath.equals(convPath.getParent())) {
+            return Optional.empty();
+        }
+        return Optional.of(convPath);
     }
 
     @ExecuteOn(TaskExecutors.IO)
@@ -64,12 +89,7 @@ public class BrainController {
                 // Restricting: only "antigravity", "antigravity-cli", "antigravity-ide" or "jetski"
                 // that actually contain a "brain" folder
                 .filter(name -> {
-                    boolean matches =
-                        name.equals("antigravity") ||
-                        name.equals("antigravity-cli") ||
-                        name.equals("antigravity-ide") ||
-                        name.equals("jetski");
-                    if (!matches) return false;
+                    if (!ALLOWED_FLAVORS.contains(name)) return false;
                     Path brainPath = Paths.get(
                         System.getProperty("user.home"),
                         ".gemini",
@@ -301,8 +321,11 @@ public class BrainController {
     @Get(value = "/conversations/{id}/transcript", produces = "application/json")
     public String getTranscript(@PathVariable String id, @QueryValue Optional<String> flavor)
         throws IOException {
-        Path brainPath = getBrainPath(flavor.orElse("antigravity-cli"));
-        Path transcriptPath = resolveTranscriptPath(brainPath.resolve(id));
+        Optional<Path> convPathOpt = resolveConversationDir(id, flavor);
+        if (convPathOpt.isEmpty()) {
+            return "[]";
+        }
+        Path transcriptPath = resolveTranscriptPath(convPathOpt.get());
         if (transcriptPath == null) {
             return "[]";
         }
@@ -342,7 +365,9 @@ public class BrainController {
         @PathVariable String id,
         @QueryValue Optional<String> flavor
     ) {
-        Path brainPath = getBrainPath(flavor.orElse("antigravity-cli")).resolve(id);
+        Optional<Path> brainPathOpt = resolveConversationDir(id, flavor);
+        if (brainPathOpt.isEmpty()) return List.of();
+        Path brainPath = brainPathOpt.get();
         if (!Files.exists(brainPath)) return List.of();
 
         List<Map<String, Object>> artifacts = new ArrayList<>();
@@ -393,7 +418,9 @@ public class BrainController {
         @PathVariable String id,
         @QueryValue Optional<String> flavor
     ) {
-        Path convPath = getBrainPath(flavor.orElse("antigravity-cli")).resolve(id);
+        Optional<Path> convPathOpt = resolveConversationDir(id, flavor);
+        if (convPathOpt.isEmpty()) return List.of();
+        Path convPath = convPathOpt.get();
         Path gitDir = convPath.resolve(".git");
         if (!Files.exists(gitDir)) return List.of();
 
@@ -442,7 +469,11 @@ public class BrainController {
         @QueryValue String commit,
         @QueryValue Optional<String> flavor
     ) {
-        Path convPath = getBrainPath(flavor.orElse("antigravity-cli")).resolve(id);
+        Optional<Path> convPathOpt = resolveConversationDir(id, flavor);
+        if (convPathOpt.isEmpty()) {
+            return HttpResponse.badRequest("Invalid conversation ID");
+        }
+        Path convPath = convPathOpt.get();
         Path gitDir = convPath.resolve(".git");
         if (!Files.exists(gitDir)) {
             return HttpResponse.notFound("No git repository found for conversation");
@@ -454,6 +485,7 @@ public class BrainController {
                 "-C",
                 convPath.toAbsolutePath().toString(),
                 "show",
+                "--",
                 commit
             )
                 .redirectErrorStream(true)
@@ -473,9 +505,9 @@ public class BrainController {
         @PathVariable String id,
         @QueryValue Optional<String> flavor
     ) {
-        Path messagesDir = getBrainPath(flavor.orElse("antigravity-cli"))
-            .resolve(id)
-            .resolve(".system_generated/messages");
+        Optional<Path> convPathOpt = resolveConversationDir(id, flavor);
+        if (convPathOpt.isEmpty()) return List.of();
+        Path messagesDir = convPathOpt.get().resolve(".system_generated/messages");
         if (!Files.exists(messagesDir)) return List.of();
 
         List<Map<String, Object>> messages = new ArrayList<>();

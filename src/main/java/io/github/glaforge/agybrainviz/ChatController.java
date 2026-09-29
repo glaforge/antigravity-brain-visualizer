@@ -30,6 +30,7 @@ import java.nio.file.Path;
 import java.nio.file.Paths;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Optional;
 
 @Controller("/api/chat")
 public class ChatController {
@@ -43,8 +44,7 @@ public class ChatController {
     }
 
     private Path getBrainPath(String flavor) {
-        if (flavor == null || flavor.isEmpty()) flavor = "antigravity-cli";
-        return Paths.get(System.getProperty("user.home"), ".gemini", flavor, "brain");
+        return BrainController.getBrainPath(flavor);
     }
 
     @ReflectiveAccess
@@ -138,7 +138,14 @@ public class ChatController {
     }
 
     private String extractContext(ChatRequest request) {
-        Path sessionDir = getBrainPath(request.flavor()).resolve(request.conversationId());
+        Optional<Path> sessionDirOpt = BrainController.resolveConversationDir(
+            request.conversationId(),
+            Optional.ofNullable(request.flavor())
+        );
+        if (sessionDirOpt.isEmpty()) {
+            return "Invalid conversation ID: " + request.conversationId();
+        }
+        Path sessionDir = sessionDirOpt.get();
         Path transcriptPath = sessionDir.resolve(".system_generated/logs/transcript.jsonl");
 
         if (!Files.exists(transcriptPath)) {

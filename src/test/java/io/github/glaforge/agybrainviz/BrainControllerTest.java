@@ -23,6 +23,7 @@ import io.micronaut.test.extensions.junit5.annotation.MicronautTest;
 import jakarta.inject.Inject;
 import java.util.List;
 import java.util.Map;
+import java.util.Optional;
 import org.junit.jupiter.api.Assertions;
 import org.junit.jupiter.api.Test;
 
@@ -97,5 +98,115 @@ class BrainControllerTest {
             );
         Assertions.assertNotNull(messages);
         Assertions.assertTrue(messages.isEmpty());
+    }
+
+    @Test
+    void testResolveConversationDirValidation() {
+        Optional<java.nio.file.Path> valid = BrainController.resolveConversationDir(
+            "valid-session-123",
+            Optional.of("antigravity")
+        );
+        Assertions.assertTrue(valid.isPresent());
+        Assertions.assertTrue(valid.get().endsWith("valid-session-123"));
+
+        // Path traversal attempts
+        Assertions.assertTrue(
+            BrainController.resolveConversationDir("../..", Optional.of("antigravity")).isEmpty()
+        );
+        Assertions.assertTrue(
+            BrainController.resolveConversationDir("foo/bar", Optional.of("antigravity")).isEmpty()
+        );
+        Assertions.assertTrue(
+            BrainController.resolveConversationDir("..\\bar", Optional.of("antigravity")).isEmpty()
+        );
+        Assertions.assertTrue(
+            BrainController.resolveConversationDir(".", Optional.of("antigravity")).isEmpty()
+        );
+        Assertions.assertTrue(
+            BrainController.resolveConversationDir("", Optional.of("antigravity")).isEmpty()
+        );
+        Assertions.assertTrue(
+            BrainController.resolveConversationDir(null, Optional.of("antigravity")).isEmpty()
+        );
+    }
+
+    @Test
+    void testGetBrainPathFlavorWhitelisting() {
+        java.nio.file.Path validFlavorPath = BrainController.getBrainPath("antigravity");
+        Assertions.assertTrue(
+            validFlavorPath.endsWith(java.nio.file.Path.of(".gemini", "antigravity", "brain"))
+        );
+
+        // Unrecognized or malicious flavor should safely fallback to antigravity-cli
+        java.nio.file.Path maliciousFlavorPath = BrainController.getBrainPath("../../etc");
+        Assertions.assertTrue(
+            maliciousFlavorPath.endsWith(
+                java.nio.file.Path.of(".gemini", "antigravity-cli", "brain")
+            )
+        );
+    }
+
+    @Test
+    void testTranscriptPathTraversalEndpoint() {
+        String transcript = client
+            .toBlocking()
+            .retrieve(
+                HttpRequest.GET("/api/brain/conversations/..%2F..%2Fetc%2Fpasswd/transcript"),
+                String.class
+            );
+        Assertions.assertEquals("[]", transcript);
+    }
+
+    @Test
+    void testArtifactsPathTraversalEndpoint() {
+        List<Map<String, Object>> artifacts = client
+            .toBlocking()
+            .retrieve(
+                HttpRequest.GET("/api/brain/conversations/..%2F..%2Fetc/artifacts"),
+                Argument.listOf(Argument.mapOf(String.class, Object.class))
+            );
+        Assertions.assertNotNull(artifacts);
+        Assertions.assertTrue(artifacts.isEmpty());
+    }
+
+    @Test
+    void testSnapshotsPathTraversalEndpoint() {
+        List<Map<String, Object>> snapshots = client
+            .toBlocking()
+            .retrieve(
+                HttpRequest.GET("/api/brain/conversations/..%2F..%2Fetc/snapshots"),
+                Argument.listOf(Argument.mapOf(String.class, Object.class))
+            );
+        Assertions.assertNotNull(snapshots);
+        Assertions.assertTrue(snapshots.isEmpty());
+    }
+
+    @Test
+    void testMessagesPathTraversalEndpoint() {
+        List<Map<String, Object>> messages = client
+            .toBlocking()
+            .retrieve(
+                HttpRequest.GET("/api/brain/conversations/..%2F..%2Fetc/messages"),
+                Argument.listOf(Argument.mapOf(String.class, Object.class))
+            );
+        Assertions.assertNotNull(messages);
+        Assertions.assertTrue(messages.isEmpty());
+    }
+
+    @Test
+    void testDiffPathTraversalEndpoint() {
+        io.micronaut.http.client.exceptions.HttpClientResponseException ex =
+            Assertions.assertThrows(
+                io.micronaut.http.client.exceptions.HttpClientResponseException.class,
+                () ->
+                    client
+                        .toBlocking()
+                        .exchange(
+                            HttpRequest.GET(
+                                "/api/brain/conversations/..%2F..%2Fetc/diff?commit=HEAD"
+                            )
+                        )
+            );
+        Assertions.assertEquals(io.micronaut.http.HttpStatus.BAD_REQUEST, ex.getStatus());
     }
 }

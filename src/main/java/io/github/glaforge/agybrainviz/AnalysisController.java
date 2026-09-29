@@ -61,8 +61,7 @@ public class AnalysisController {
     }
 
     private Path getBrainPath(String flavor) {
-        if (flavor == null || flavor.isEmpty()) flavor = "antigravity-cli";
-        return Paths.get(System.getProperty("user.home"), ".gemini", flavor, "brain");
+        return BrainController.getBrainPath(flavor);
     }
 
     private static final Map<String, ProgressState> progressMap = new ConcurrentHashMap<>();
@@ -113,14 +112,18 @@ public class AnalysisController {
             return "{\"summary\": \"Error: GEMINI_API_KEY environment variable is not set. Cannot use LangChain4j analysis.\"}";
         }
 
+        Optional<Path> convDirOpt = BrainController.resolveConversationDir(id, flavor);
+        if (convDirOpt.isEmpty()) {
+            return "{\"summary\": \"Invalid conversation ID.\"}";
+        }
+
         if (runningTasks.putIfAbsent(id, new Object()) != null) {
             return "{\"summary\": \"Analysis is already running in the background for this conversation. Please wait a moment and refresh.\"}";
         }
 
         try {
-            Path brainPath = getBrainPath(flavor.orElse("antigravity-cli"));
-            Path transcriptPath = brainPath
-                .resolve(id)
+            Path convDir = convDirOpt.get();
+            Path transcriptPath = convDir
                 .resolve(".system_generated")
                 .resolve("logs")
                 .resolve("transcript.jsonl");
@@ -129,13 +132,11 @@ public class AnalysisController {
             }
 
             boolean forceRecompute = force.orElse(false);
-            Path summaryJsonPath = brainPath
-                .resolve(id)
+            Path summaryJsonPath = convDir
                 .resolve(".system_generated")
                 .resolve("logs")
                 .resolve("summary.json");
-            Path shortTitlePath = brainPath
-                .resolve(id)
+            Path shortTitlePath = convDir
                 .resolve(".system_generated")
                 .resolve("logs")
                 .resolve("short_title.txt");
