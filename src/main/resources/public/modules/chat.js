@@ -13,7 +13,14 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-import { state, escapeHtml, renderMarkdown } from "./utils.js";
+import {
+  state,
+  escapeHtml,
+  renderMarkdown,
+  apiFetch,
+  isSidecarMode,
+  sendToActiveAgent,
+} from "./utils.js";
 
 let activeContext = { type: "global", targetId: "", label: "Global Session" };
 
@@ -165,14 +172,14 @@ async function handleSend() {
   appendLoading(loadingId);
 
   try {
-    const response = await fetch("/api/chat", {
+    const response = await apiFetch("/api/chat", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({
         flavor:
           state.currentFlavor ||
           document.getElementById("flavor-select")?.value ||
-          "antigravity-cli",
+          "antigravity",
         conversationId: conversationId,
         scope: {
           type: activeContext.type,
@@ -241,6 +248,37 @@ function appendMessage(role, text) {
       });
       parent.style.position = "relative";
       parent.appendChild(copyBtn);
+
+      if (isSidecarMode()) {
+        const sendAgentBtn = document.createElement("button");
+        sendAgentBtn.className = "chat-copy-code-btn";
+        sendAgentBtn.style.right = isSkill ? "165px" : "115px";
+        sendAgentBtn.innerHTML = isSkill
+          ? `🚀 Send Skill to Agent`
+          : `🚀 Send to Agent`;
+        sendAgentBtn.addEventListener("click", async () => {
+          const orig = sendAgentBtn.innerHTML;
+          sendAgentBtn.disabled = true;
+          sendAgentBtn.innerHTML = `⏳ Sending...`;
+          try {
+            const promptPrefix = isSkill
+              ? "Please create or update this Agent Skill in my workspace based on the Brain Visualizer Session Assistant recommendation:\n\n```markdown\n"
+              : "Please apply this snippet from the Brain Visualizer Session Assistant:\n\n```\n";
+            await sendToActiveAgent(
+              `${promptPrefix}${codeBlock.textContent.trim()}\n\`\`\``
+            );
+            sendAgentBtn.innerHTML = `✅ Sent!`;
+          } catch (err) {
+            sendAgentBtn.innerHTML = `❌ Error`;
+          } finally {
+            setTimeout(() => {
+              sendAgentBtn.innerHTML = orig;
+              sendAgentBtn.disabled = false;
+            }, 2500);
+          }
+        });
+        parent.appendChild(sendAgentBtn);
+      }
     });
   } else {
     contentDiv.textContent = text;

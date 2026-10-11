@@ -67,6 +67,13 @@ public class ChatController {
     @ExecuteOn(TaskExecutors.IO)
     @Post
     public ChatResponse processChat(@Body ChatRequest request) {
+        if (ChatModelFactory.resolveApiKey().isEmpty()) {
+            return new ChatResponse(
+                "❌ **Error: `GEMINI_API_KEY` is not set in the host environment.**\n\n" +
+                "Set `GEMINI_API_KEY` in your shell environment (or inside `sidecars/visualizer/sidecar.json` `env`) and restart the sidecar to enable the Session Assistant.",
+                "error"
+            );
+        }
         if (request.conversationId() == null || request.conversationId().isEmpty()) {
             return new ChatResponse("Please select an active session first.", "none");
         }

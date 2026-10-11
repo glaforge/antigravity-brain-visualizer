@@ -13,7 +13,7 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-import { state, escapeHtml } from "./modules/utils.js";
+import { state, escapeHtml, isSidecarMode } from "./modules/utils.js";
 import { renderTranscript } from "./modules/timeline.js";
 import { renderStats } from "./modules/stats.js";
 import { triggerAnalysis } from "./modules/analysis.js";
@@ -28,9 +28,27 @@ let sortCriteria = "time";
 let viewMode = "all";
 let nestSubagents = true;
 
-document.addEventListener("DOMContentLoaded", async () => {
+async function bootstrapApp() {
   initUI();
   initChat();
+
+  // Fail-fast check for GEMINI_API_KEY configuration
+  try {
+    const statusRes = await fetch("/api/analysis/status");
+    if (statusRes.ok) {
+      const statusData = await statusRes.json();
+      const banner = document.getElementById("api-key-error-banner");
+      const detail = document.getElementById("api-key-error-detail");
+      if (banner && !statusData.apiKeyConfigured && !isSidecarMode()) {
+        if (detail && statusData.error) {
+          detail.textContent = statusData.error;
+        }
+        banner.classList.remove("hidden");
+      }
+    }
+  } catch (err) {
+    console.error("Failed to check /api/analysis/status:", err);
+  }
 
   // View Navigation Tabs
   const transcriptBtn = document.getElementById("tab-transcript-btn");
@@ -101,6 +119,21 @@ document.addEventListener("DOMContentLoaded", async () => {
     });
   }
 
+  const openInHostBtn = document.getElementById("open-in-host-btn");
+  if (
+    openInHostBtn &&
+    isSidecarMode() &&
+    window.sidecar.ui?.toggleConversation
+  ) {
+    openInHostBtn.classList.remove("hidden");
+    openInHostBtn.style.display = "flex";
+    openInHostBtn.addEventListener("click", () => {
+      if (state.currentConversationId) {
+        window.sidecar.ui.toggleConversation(state.currentConversationId);
+      }
+    });
+  }
+
   const flavorSelect = document.getElementById("flavor-select");
   await loadFlavors(flavorSelect);
   state.currentFlavor = flavorSelect.value;
@@ -133,6 +166,25 @@ document.addEventListener("DOMContentLoaded", async () => {
 
   if (sidebarToggleBtn) {
     sidebarToggleBtn.addEventListener("click", toggleSidebar);
+  }
+
+  // In Antigravity sidecar mode, auto-collapse the session sidebar and target the active conversation
+  if (isSidecarMode()) {
+    const sidebar = document.querySelector(".sidebar");
+    if (sidebar && !sidebar.classList.contains("collapsed")) {
+      toggleSidebar();
+    }
+    const aiContent = document.getElementById("ai-summary-content");
+    const aiChevron = document
+      .getElementById("ai-summary-header")
+      ?.querySelector(".chevron");
+    if (aiContent && !aiContent.classList.contains("collapsed")) {
+      aiContent.classList.add("collapsed");
+      if (aiChevron) aiChevron.style.transform = "rotate(0deg)";
+    }
+    if (window.sidecar.conversationId && !window.location.hash) {
+      window.location.hash = window.sidecar.conversationId;
+    }
   }
 
   // Global hotkey Cmd+B or Ctrl+B to toggle sidebar
@@ -332,7 +384,13 @@ document.addEventListener("DOMContentLoaded", async () => {
       }
     }
   });
-});
+}
+
+if (document.readyState === "loading") {
+  document.addEventListener("DOMContentLoaded", bootstrapApp);
+} else {
+  bootstrapApp();
+}
 
 async function loadFlavors(selectElement) {
   try {
@@ -363,7 +421,9 @@ async function loadFlavors(selectElement) {
     });
 
     const savedFlavor = localStorage.getItem("agy-flavor");
-    if (savedFlavor && flavors.includes(savedFlavor)) {
+    if (isSidecarMode() && flavors.includes("antigravity")) {
+      selectElement.value = "antigravity";
+    } else if (savedFlavor && flavors.includes(savedFlavor)) {
       selectElement.value = savedFlavor;
     } else if (flavors.includes("antigravity")) {
       selectElement.value = "antigravity";
@@ -930,6 +990,16 @@ async function selectConversation(id, element) {
   const subtitle = document.getElementById("current-session-id");
   subtitle.innerText = id;
   subtitle.dataset.id = id;
+
+  const openInHostBtn = document.getElementById("open-in-host-btn");
+  if (openInHostBtn && isSidecarMode()) {
+    const isActiveHostConv =
+      window.sidecar.conversationId && window.sidecar.conversationId === id;
+    openInHostBtn.disabled = Boolean(isActiveHostConv);
+    openInHostBtn.innerHTML = isActiveHostConv
+      ? `<span>✓</span> Active in Host`
+      : `<span>↗</span> Open in Antigravity`;
+  }
 
   document.getElementById("summarize-btn").disabled = false;
 

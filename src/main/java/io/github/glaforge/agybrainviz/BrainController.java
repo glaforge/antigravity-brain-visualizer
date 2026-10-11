@@ -43,9 +43,14 @@ import java.util.stream.Stream;
 public class BrainController {
 
     private final ConversationDatabaseService dbService;
+    private final GenerativeUiWidgetBuilder widgetBuilder;
 
-    public BrainController(ConversationDatabaseService dbService) {
+    public BrainController(
+        ConversationDatabaseService dbService,
+        GenerativeUiWidgetBuilder widgetBuilder
+    ) {
         this.dbService = dbService;
+        this.widgetBuilder = widgetBuilder;
     }
 
     public static final Set<String> ALLOWED_FLAVORS = Set.of(
@@ -70,12 +75,31 @@ public class BrainController {
         ) {
             return Optional.empty();
         }
-        Path baseBrainPath = getBrainPath(flavor.orElse("antigravity-cli"));
-        Path convPath = baseBrainPath.resolve(id).normalize();
-        if (!baseBrainPath.equals(convPath.getParent())) {
+        if (flavor.isPresent() && ALLOWED_FLAVORS.contains(flavor.get())) {
+            Path baseBrainPath = getBrainPath(flavor.get());
+            Path convPath = baseBrainPath.resolve(id).normalize();
+            if (baseBrainPath.equals(convPath.getParent()) && Files.exists(convPath)) {
+                return Optional.of(convPath);
+            }
+        }
+        for (String candidateFlavor : List.of(
+            "antigravity",
+            "antigravity-cli",
+            "antigravity-ide",
+            "jetski"
+        )) {
+            Path baseBrainPath = getBrainPath(candidateFlavor);
+            Path convPath = baseBrainPath.resolve(id).normalize();
+            if (baseBrainPath.equals(convPath.getParent()) && Files.exists(convPath)) {
+                return Optional.of(convPath);
+            }
+        }
+        Path defaultBase = getBrainPath(flavor.orElse("antigravity"));
+        Path defaultConv = defaultBase.resolve(id).normalize();
+        if (!defaultBase.equals(defaultConv.getParent())) {
             return Optional.empty();
         }
-        return Optional.of(convPath);
+        return Optional.of(defaultConv);
     }
 
     @ExecuteOn(TaskExecutors.IO)
@@ -537,5 +561,71 @@ public class BrainController {
             return tsB.compareTo(tsA);
         });
         return messages;
+    }
+
+    @ExecuteOn(TaskExecutors.IO)
+    @Get(value = "/conversations/{id}/widget", produces = "text/html")
+    public HttpResponse<String> getWidget(
+        @PathVariable String id,
+        @QueryValue Optional<String> flavor
+    ) {
+        Optional<Path> convPathOpt = resolveConversationDir(id, flavor);
+        if (convPathOpt.isEmpty()) {
+            return HttpResponse.badRequest("Invalid conversation ID");
+        }
+        if (!Files.exists(convPathOpt.get())) {
+            return HttpResponse.notFound("Conversation brain directory not found for ID: " + id);
+        }
+        Path convDir = convPathOpt.get();
+        Path transcriptPath = resolveTranscriptPath(convDir);
+        if (transcriptPath == null || !Files.exists(transcriptPath)) {
+            return HttpResponse.notFound("Transcript file not found for conversation ID: " + id);
+        }
+
+        String title = extractSummaryFromTranscript(convDir);
+        String status = "";
+        String projectName = "";
+
+        // Enrich with SQLite metadata if available
+        String resolvedFlavor = convDir.getParent().getParent().getFileName().toString();
+        Optional<Path> dbPathOpt = dbService.getDatabasePath(resolvedFlavor);
+        if (dbPathOpt.isPresent()) {
+            List<ConversationSummary> summaries = dbService.listConversationsFromDb(
+                dbPathOpt.get()
+            );
+            for (ConversationSummary c : summaries) {
+                if (id.equals(c.id())) {
+                    if (c.summary() != null && !c.summary().isBlank()) {
+                        title = c.summary();
+                    }
+                    if (c.status() != null) {
+                        status = c.status();
+                    }
+                    if (c.projectName() != null) {
+                        projectName = c.projectName();
+                    }
+                    break;
+                }
+            }
+        }
+
+        try {
+            String html = widgetBuilder.buildWidgetHtml(
+                id,
+                title,
+                status,
+                projectName,
+                convDir,
+                transcriptPath
+            );
+            return HttpResponse.ok(html);
+        } catch (IOException e) {
+            return HttpResponse.serverError(
+                "Failed to build Generative UI widget for conversation " +
+                id +
+                ": " +
+                e.getMessage()
+            );
+        }
     }
 }

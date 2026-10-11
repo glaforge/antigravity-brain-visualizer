@@ -26,6 +26,33 @@ export const state = {
   summaryCache: {},
 };
 
+export function isSidecarMode() {
+  return Boolean(
+    typeof window !== "undefined" &&
+      window.sidecar &&
+      typeof window.sidecar.fetch === "function"
+  );
+}
+
+export function apiFetch(url, options = {}) {
+  if (isSidecarMode()) {
+    return window.sidecar.fetch(url, options);
+  }
+  return fetch(url, options);
+}
+
+export async function sendToActiveAgent(message) {
+  if (!isSidecarMode() || !window.sidecar.agent) {
+    throw new Error("Not running inside the Antigravity sidecar.");
+  }
+  const targetConvId =
+    window.sidecar.conversationId || state.currentConversationId;
+  if (targetConvId) {
+    return window.sidecar.agent.sendMessage(message, targetConvId);
+  }
+  return window.sidecar.agent.startConversation(message);
+}
+
 export function escapeHtml(unsafe) {
   if (!unsafe) return "";
   return String(unsafe)

@@ -90,7 +90,7 @@ export async function renderArtifactsView(container, conversationId, flavor) {
                     idx === 0 ? "active" : ""
                   }" data-idx="${idx}" data-path="${escapeHtml(
                     art.path
-                  )}" style="padding:10px 12px; background:rgba(30, 41, 59, 0.4); border:1px solid var(--border-color); border-radius:8px; cursor:pointer; transition:all 0.2s;">
+                  )}" style="padding:10px 12px; background:var(--bg-card); border:1px solid var(--border-color); border-radius:8px; cursor:pointer; transition:all 0.2s;">
                     <div style="display:flex; align-items:center; justify-content:space-between; gap:6px;">
                       <div style="font-weight:600; font-size:0.85rem; color:var(--text-primary); display:flex; align-items:center; gap:6px; overflow:hidden; text-overflow:ellipsis; white-space:nowrap;" title="${escapeHtml(
                         art.filename
@@ -100,7 +100,7 @@ export async function renderArtifactsView(container, conversationId, flavor) {
                       </div>
                       ${
                         version
-                          ? `<span style="font-size:0.65rem; background:rgba(139, 92, 246, 0.2); color:#a78bfa; padding:2px 6px; border-radius:10px; font-weight:700;">v${version}</span>`
+                          ? `<span style="font-size:0.65rem; background:rgba(139, 92, 246, 0.15); color:var(--accent-purple); padding:2px 6px; border-radius:10px; font-weight:700;">v${version}</span>`
                           : ""
                       }
                     </div>
@@ -141,7 +141,7 @@ export async function renderArtifactsView(container, conversationId, flavor) {
                   return `
                   <div class="snapshot-item" data-hash="${escapeHtml(
                     snap.hash
-                  )}" style="padding:8px 12px; background:rgba(30, 41, 59, 0.4); border:1px solid var(--border-color); border-radius:8px; cursor:pointer; transition:all 0.2s;">
+                  )}" style="padding:8px 12px; background:var(--bg-card); border:1px solid var(--border-color); border-radius:8px; cursor:pointer; transition:all 0.2s;">
                     <div style="display:flex; align-items:center; justify-content:space-between;">
                       <span style="font-family:var(--font-mono); font-size:0.75rem; color:#f59e0b; font-weight:600;">🏷️ ${shortHash}</span>
                       <span style="font-size:0.7rem; color:var(--text-secondary);">${formatTime(
@@ -163,8 +163,8 @@ export async function renderArtifactsView(container, conversationId, flavor) {
         </div>
 
         <!-- Right Content Area: Viewer -->
-        <div class="artifacts-viewer" style="flex: 1; display:flex; flex-direction:column; background:rgba(15, 23, 42, 0.5); border:1px solid var(--border-color); border-radius:12px; overflow:hidden;">
-          <div class="viewer-header" style="padding:12px 16px; background:rgba(30, 41, 59, 0.4); border-bottom:1px solid var(--border-color); display:flex; justify-content:space-between; align-items:center;">
+        <div class="artifacts-viewer" style="flex: 1; display:flex; flex-direction:column; background:var(--bg-card); border:1px solid var(--border-color); border-radius:12px; overflow:hidden;">
+          <div class="viewer-header" style="padding:12px 16px; background:var(--bg-elevated); border-bottom:1px solid var(--border-color); display:flex; justify-content:space-between; align-items:center;">
             <div id="viewer-title" style="font-weight:600; font-size:0.95rem; color:var(--text-primary); display:flex; align-items:center; gap:8px;">
               <span>Select an item to view</span>
             </div>
@@ -346,10 +346,10 @@ export async function renderArtifactsView(container, conversationId, flavor) {
           .querySelectorAll(".artifact-item, .snapshot-item")
           .forEach((el) => {
             el.style.borderColor = "var(--border-color)";
-            el.style.background = "rgba(30, 41, 59, 0.4)";
+            el.style.background = "var(--bg-card)";
           });
         item.style.borderColor = "var(--accent-blue)";
-        item.style.background = "rgba(59, 130, 246, 0.15)";
+        item.style.background = "var(--bg-hover)";
         const idx = parseInt(item.dataset.idx, 10);
         if (artifacts[idx]) showArtifact(artifacts[idx]);
       });
@@ -362,10 +362,10 @@ export async function renderArtifactsView(container, conversationId, flavor) {
           .querySelectorAll(".artifact-item, .snapshot-item")
           .forEach((el) => {
             el.style.borderColor = "var(--border-color)";
-            el.style.background = "rgba(30, 41, 59, 0.4)";
+            el.style.background = "var(--bg-card)";
           });
         item.style.borderColor = "#f59e0b";
-        item.style.background = "rgba(245, 158, 11, 0.15)";
+        item.style.background = "rgba(245, 158, 11, 0.12)";
         const hash = item.dataset.hash;
         const snap = snapshots.find((s) => s.hash === hash);
         if (snap) showSnapshot(snap);
@@ -377,14 +377,14 @@ export async function renderArtifactsView(container, conversationId, flavor) {
       const firstItem = container.querySelector('.artifact-item[data-idx="0"]');
       if (firstItem) {
         firstItem.style.borderColor = "var(--accent-blue)";
-        firstItem.style.background = "rgba(59, 130, 246, 0.15)";
+        firstItem.style.background = "var(--bg-hover)";
       }
       showArtifact(artifacts[0]);
     } else if (snapshots.length > 0) {
       const firstSnap = container.querySelector(".snapshot-item");
       if (firstSnap) {
         firstSnap.style.borderColor = "#f59e0b";
-        firstSnap.style.background = "rgba(245, 158, 11, 0.15)";
+        firstSnap.style.background = "rgba(245, 158, 11, 0.12)";
       }
       showSnapshot(snapshots[0]);
     }

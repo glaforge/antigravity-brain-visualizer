@@ -664,7 +664,7 @@ export function renderTranscript(steps, container) {
                 👁 Inline Preview
               </button>
             </div>
-            <div class="spooled-preview-container hidden" style="margin: 8px 0 12px; padding: 14px; background: rgba(15, 23, 42, 0.7); border: 1px solid rgba(148, 163, 184, 0.2); border-radius: 8px; max-height: 450px; overflow-y: auto;"></div>
+            <div class="spooled-preview-container hidden" style="margin: 8px 0 12px; padding: 14px; background: var(--bg-elevated); border: 1px solid var(--border-color); border-radius: 8px; max-height: 450px; overflow-y: auto;"></div>
           `;
         }
 
@@ -728,14 +728,12 @@ export function renderTranscript(steps, container) {
       currentSequenceContainer = document.createElement("div");
       currentSequenceContainer.className = "sequence-wrapper";
       Object.assign(currentSequenceContainer.style, {
-        marginBottom: "16px",
-        background: "rgba(30, 41, 59, 0.3)",
-        border: "1px solid rgba(148, 163, 184, 0.15)",
-        borderRadius: "16px",
-        padding: "16px",
-        boxShadow:
-          "0 4px 6px -1px rgba(0, 0, 0, 0.1), 0 2px 4px -1px rgba(0, 0, 0, 0.06)",
-        transition: "all 0.3s ease",
+        marginBottom: "14px",
+        background: "var(--bg-subtle)",
+        border: "1px solid var(--border-color)",
+        borderRadius: "12px",
+        padding: "14px",
+        transition: "all 0.2s ease",
       });
       if (card.dataset.timestamp) {
         currentSequenceContainer.dataset.timestampStart =

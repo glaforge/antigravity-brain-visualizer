@@ -1,0 +1,12 @@
+{
+  "name": "agy-brain-viz",
+  "displayName": "Antigravity Brain Visualizer",
+  "version": "0.1.0",
+  "description": "Interactive conversation brain visualizer, token and cost analyzer, git snapshot diff viewer, and Gemini session assistant for Antigravity.",
+  "logo": "assets/logo.svg",
+  "suggestedPrompts": [
+    "Visualize the token usage, timeline, and analysis for this conversation",
+    "Analyze my latest Antigravity session for bottlenecks and draft a skill to prevent issues",
+    "Open the Brain Visualizer side pane to inspect conversation transcripts and snapshot diffs"
+  ]
+}

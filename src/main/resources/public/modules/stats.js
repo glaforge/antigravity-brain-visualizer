@@ -224,7 +224,7 @@ export function renderStats(steps) {
     )}</strong></span>`;
 
     durationChartHtml +=
-      '<div style="position: relative; height: 24px; width: 100%; background: rgba(30, 41, 59, 0.4); border-radius: 6px; overflow: hidden; border: 1px solid rgba(255,255,255,0.05);">';
+      '<div style="position: relative; height: 24px; width: 100%; background: var(--bg-elevated); border-radius: 6px; overflow: hidden; border: 1px solid var(--border-color);">';
 
     if (totalMs === 0) {
       durationChartHtml += `<div style="position: absolute; left: 0%; width: 100%; height: 100%; background: #f59e0b;" onmouseover="const el=document.getElementById('timeline-hover-info'); el.innerHTML='<span style=\\'color:#f59e0b;\\'>Instant action</span>';" onmouseout="const el=document.getElementById('timeline-hover-info'); el.innerHTML=el.getAttribute('data-default');"></div>`;
@@ -240,7 +240,7 @@ export function renderStats(steps) {
           const gapEndStr = formatTime(seg.start, false);
           const gapLenStr = formatMs(gapMs);
           const hoverText = `<span style=\\'color:var(--text-secondary);\\'>Pause: ${gapStartStr} - ${gapEndStr} (<strong style=\\'color:var(--text-primary);\\'>${gapLenStr}</strong>)</span>`;
-          durationChartHtml += `<div style="position: absolute; left: ${gapStartPct}%; width: ${gapPct}%; height: 100%; background: transparent; cursor: pointer; transition: background 0.2s;" onclick="if(window.scrollToTime) { const pct = event.offsetX / this.offsetWidth; window.scrollToTime(${lastEnd} + pct * ${gapMs}); }" onmouseover="this.style.background='rgba(255,255,255,0.05)'; const el=document.getElementById('timeline-hover-info'); el.innerHTML='${hoverText}';" onmouseout="this.style.background='transparent'; const el=document.getElementById('timeline-hover-info'); el.innerHTML=el.getAttribute('data-default');"></div>`;
+          durationChartHtml += `<div style="position: absolute; left: ${gapStartPct}%; width: ${gapPct}%; height: 100%; background: transparent; cursor: pointer; transition: background 0.2s;" onclick="if(window.scrollToTime) { const pct = event.offsetX / this.offsetWidth; window.scrollToTime(${lastEnd} + pct * ${gapMs}); }" onmouseover="this.style.background='var(--bg-hover)'; const el=document.getElementById('timeline-hover-info'); el.innerHTML='${hoverText}';" onmouseout="this.style.background='transparent'; const el=document.getElementById('timeline-hover-info'); el.innerHTML=el.getAttribute('data-default');"></div>`;
         }
 
         const segMs = seg.end - seg.start;
@@ -267,7 +267,7 @@ export function renderStats(steps) {
         lastEnd = seg.end;
       });
     }
-    durationChartHtml += `<div id="session-timeline-indicator" style="position: absolute; top: 0; bottom: 0; left: 0%; width: 0%; background: rgba(255, 255, 255, 0.2); border: 1px solid rgba(255, 255, 255, 0.5); box-sizing: border-box; border-radius: 4px; pointer-events: none; transition: left 0.1s ease-out, width 0.1s ease-out; display: none; z-index: 10;"></div>`;
+    durationChartHtml += `<div id="session-timeline-indicator" style="position: absolute; top: 0; bottom: 0; left: 0%; width: 0%; background: rgba(99, 102, 241, 0.2); border: 1px solid var(--accent-blue); box-sizing: border-box; border-radius: 4px; pointer-events: none; transition: left 0.1s ease-out, width 0.1s ease-out; display: none; z-index: 10;"></div>`;
     durationChartHtml += "</div>";
 
     durationChartHtml += `<div id="timeline-hover-info" data-default='${defaultSummary}' style="display: flex; justify-content: space-between; margin-top: 12px; font-size: 0.8rem; color: var(--text-secondary); transition: all 0.2s;">${defaultSummary}</div>`;
@@ -290,8 +290,8 @@ export function renderStats(steps) {
       const width = Math.max((count / maxFreq) * 100, 2);
       toolsChartHtml += `
                 <div class="tool-chart-row" style="display: flex; align-items: center; margin-bottom: 10px; gap: 16px;">
-                    <div style="flex: 0 0 200px; font-size: 0.8rem; font-family: var(--font-mono); color: var(--text-primary); text-align: right; text-overflow: ellipsis; overflow: hidden; white-space: nowrap;" title="${name}">${name}</div>
-                    <div style="flex: 1; height: 8px; background: rgba(30, 41, 59, 0.5); border-radius: 4px; overflow: hidden;">
+                    <div style="flex: 0 0 180px; font-size: 0.8rem; font-family: var(--font-mono); color: var(--text-primary); text-align: right; text-overflow: ellipsis; overflow: hidden; white-space: nowrap;" title="${name}">${name}</div>
+                    <div style="flex: 1; height: 8px; background: var(--bg-elevated); border-radius: 4px; overflow: hidden;">
                         <div style="height: 100%; width: ${width}%; background: var(--accent-purple); border-radius: 4px; transition: width 0.5s ease;"></div>
                     </div>
                     <div style="flex: 0 0 30px; font-size: 0.85rem; color: var(--text-secondary); font-weight: 600;">${count}</div>
@@ -317,10 +317,10 @@ export function renderStats(steps) {
       const width = Math.max((count / maxErrFreq) * 100, 2);
       errorsChartHtml += `
                 <div class="tool-chart-row" style="display: flex; align-items: center; margin-bottom: 10px; gap: 16px;">
-                    <div style="flex: 0 0 300px; font-size: 0.8rem; font-family: var(--font-mono); color: var(--text-primary); text-align: right; text-overflow: ellipsis; overflow: hidden; white-space: nowrap;" title="${escapeHtml(
+                    <div style="flex: 0 0 220px; font-size: 0.8rem; font-family: var(--font-mono); color: var(--text-primary); text-align: right; text-overflow: ellipsis; overflow: hidden; white-space: nowrap;" title="${escapeHtml(
                       name
                     )}">${escapeHtml(name)}</div>
-                    <div style="flex: 1; height: 8px; background: rgba(30, 41, 59, 0.5); border-radius: 4px; overflow: hidden;">
+                    <div style="flex: 1; height: 8px; background: var(--bg-elevated); border-radius: 4px; overflow: hidden;">
                         <div style="height: 100%; width: ${width}%; background: var(--error); border-radius: 4px; transition: width 0.5s ease;"></div>
                     </div>
                     <div style="flex: 0 0 30px; font-size: 0.85rem; color: var(--text-secondary); font-weight: 600;">${count}</div>
@@ -363,7 +363,7 @@ export function renderStats(steps) {
     );
 
     tokensChartHtml += `
-      <div style="height: 14px; width: 100%; display: flex; border-radius: 6px; overflow: hidden; background: rgba(30, 41, 59, 0.5); margin-bottom: 14px; border: 1px solid rgba(255,255,255,0.05);">
+      <div style="height: 14px; width: 100%; display: flex; border-radius: 6px; overflow: hidden; background: var(--bg-elevated); margin-bottom: 14px; border: 1px solid var(--border-color);">
         <div style="width: ${inputPct}%; background: #38bdf8;" title="Input: ${formatTokens(
       inputTokens
     )} (${inputPct}%)"></div>

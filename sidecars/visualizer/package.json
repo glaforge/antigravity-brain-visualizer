@@ -1,0 +1,7 @@
+{
+  "name": "agy-brain-viz-sidecar",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "description": "Antigravity Sidecar supervisor and proxy for the GraalVM native Brain Visualizer backend."
+}

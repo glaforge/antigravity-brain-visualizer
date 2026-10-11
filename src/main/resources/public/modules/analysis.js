@@ -13,7 +13,12 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-import { state, escapeHtml } from "./utils.js";
+import {
+  state,
+  escapeHtml,
+  isSidecarMode,
+  sendToActiveAgent,
+} from "./utils.js";
 
 export async function triggerAnalysis(sessionId, force) {
   const btn = document.getElementById("summarize-btn");
@@ -39,6 +44,7 @@ export async function triggerAnalysis(sessionId, force) {
     aiText.innerHTML = "<em>Loading analysis...</em>";
   } else {
     aiText.innerHTML = state.summaryCache[sessionId];
+    attachRecommendationHandlers(aiText);
     return; // already cached and not forced
   }
 
@@ -57,7 +63,7 @@ export async function triggerAnalysis(sessionId, force) {
       const pContainer = document.createElement("div");
       pContainer.innerHTML = `
                 <div style="font-size: 0.9rem; color: var(--text-secondary); margin-bottom: 8px;"><span id="progress-phase">Extracting conversation context...</span> <span id="progress-text">10%</span></div>
-                <div style="width: 100%; height: 6px; background: rgba(255,255,255,0.1); border-radius: 3px; overflow: hidden;">
+                <div style="width: 100%; height: 6px; background: var(--bg-elevated); border-radius: 3px; overflow: hidden;">
                     <div id="progress-bar" style="width: 10%; height: 100%; background: var(--accent-blue); transition: width 0.3s ease-out;"></div>
                 </div>
             `;
@@ -107,18 +113,31 @@ export async function triggerAnalysis(sessionId, force) {
 
     const data = await res.json();
 
+    if (data.error === "GEMINI_API_KEY_MISSING") {
+      aiText.innerHTML = `
+        <div class="api-error-banner" style="margin-bottom:0;">
+          <span class="api-error-icon">⚠️</span>
+          <div class="api-error-body">
+            <strong>Cannot analyze conversation: GEMINI_API_KEY is missing.</strong>
+            <span>${escapeHtml(data.summary)}</span>
+          </div>
+        </div>
+      `;
+      return;
+    }
+
     let html = "";
     if (data.summary) {
-      html += `<p style="font-size: 1.05rem; margin-bottom: 24px; line-height: 1.6; color: var(--text-primary);">${escapeHtml(
+      html += `<p style="font-size: 0.95rem; margin-bottom: 18px; line-height: 1.6; color: var(--text-primary);">${escapeHtml(
         data.summary
       )}</p>`;
     }
 
     if (data.flow && data.flow.length > 0) {
-      html += `<h4 style="color: var(--accent-blue); margin-top: 16px; margin-bottom: 12px; font-size: 0.9rem; text-transform: uppercase; letter-spacing: 0.05em;">Conversation Flow</h4>`;
-      html += `<ul style="list-style-type: none; padding-left: 0; margin-bottom: 24px;">`;
+      html += `<h4 style="color: var(--accent-blue); margin-top: 16px; margin-bottom: 10px; font-size: 0.8rem; text-transform: uppercase; letter-spacing: 0.05em;">Conversation Flow</h4>`;
+      html += `<ul style="list-style-type: none; padding-left: 0; margin-bottom: 20px;">`;
       data.flow.forEach((item, i) => {
-        html += `<li style="margin-bottom: 10px; padding-left: 24px; position: relative; color: var(--text-secondary); line-height: 1.5;">
+        html += `<li style="margin-bottom: 8px; padding-left: 20px; position: relative; color: var(--text-secondary); line-height: 1.5; font-size: 0.85rem;">
                     <span style="position: absolute; left: 0; top: 0; color: var(--accent-blue);">→</span>${escapeHtml(
                       item
                     )}
@@ -128,14 +147,14 @@ export async function triggerAnalysis(sessionId, force) {
     }
 
     if (data.agentActions && data.agentActions.length > 0) {
-      html += `<h4 style="color: var(--accent-purple); margin-top: 16px; margin-bottom: 12px; font-size: 0.9rem; text-transform: uppercase; letter-spacing: 0.05em;">Agent Actions Breakdown</h4>`;
-      html += `<div style="display: flex; flex-direction: column; gap: 12px; margin-bottom: 24px;">`;
+      html += `<h4 style="color: var(--accent-purple); margin-top: 16px; margin-bottom: 10px; font-size: 0.8rem; text-transform: uppercase; letter-spacing: 0.05em;">Agent Actions Breakdown</h4>`;
+      html += `<div style="display: flex; flex-direction: column; gap: 10px; margin-bottom: 20px;">`;
       data.agentActions.forEach((action) => {
-        html += `<div style="background: rgba(30, 41, 59, 0.4); border: 1px solid rgba(255,255,255,0.05); border-radius: 6px; padding: 14px;">
-                    <div style="font-weight: 600; color: var(--text-primary); margin-bottom: 6px; font-family: var(--font-mono); font-size: 0.85rem;">${escapeHtml(
+        html += `<div style="background: var(--bg-elevated); border: 1px solid var(--border-color); border-radius: 8px; padding: 12px;">
+                    <div style="font-weight: 600; color: var(--text-primary); margin-bottom: 4px; font-family: var(--font-mono); font-size: 0.82rem;">${escapeHtml(
                       action.action
                     )}</div>
-                    <div style="font-size: 0.9rem; color: var(--text-secondary); line-height: 1.5;">${escapeHtml(
+                    <div style="font-size: 0.85rem; color: var(--text-secondary); line-height: 1.5;">${escapeHtml(
                       action.description
                     )}</div>
                 </div>`;
@@ -191,9 +210,17 @@ export async function triggerAnalysis(sessionId, force) {
       html += `<h4 style="color: #10b981; margin-top: 16px; margin-bottom: 12px; font-size: 0.9rem; text-transform: uppercase; letter-spacing: 0.05em;">Future Recommendations</h4>`;
       html += `<div style="display: flex; flex-direction: column; gap: 8px; margin-bottom: 24px;">`;
       data.recommendations.forEach((rec) => {
-        html += `<div style="background: rgba(16, 185, 129, 0.05); border: 1px solid rgba(16, 185, 129, 0.2); border-radius: 6px; padding: 12px; font-size: 0.9rem; color: var(--text-primary); line-height: 1.5; display: flex; align-items: flex-start; gap: 10px;">
-                    <svg style="flex-shrink: 0; margin-top: 2px; color: #10b981;" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 2v20M17 5H9.5a3.5 3.5 0 0 0 0 7h5a3.5 3.5 0 0 1 0 7H6"/></svg>
-                    <span>${escapeHtml(rec)}</span>
+        const sendBtnHtml = isSidecarMode()
+          ? `<button class="sidecar-send-btn rec-send-agent-btn" data-rec="${escapeHtml(
+              rec
+            )}" title="Send this recommendation to the active Antigravity agent">🚀 Send to Agent</button>`
+          : "";
+        html += `<div style="background: rgba(16, 185, 129, 0.05); border: 1px solid rgba(16, 185, 129, 0.2); border-radius: 6px; padding: 12px; font-size: 0.9rem; color: var(--text-primary); line-height: 1.5; display: flex; align-items: flex-start; justify-content: space-between; gap: 12px;">
+                    <div style="display: flex; align-items: flex-start; gap: 10px; flex: 1;">
+                        <svg style="flex-shrink: 0; margin-top: 2px; color: #10b981;" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 2v20M17 5H9.5a3.5 3.5 0 0 0 0 7h5a3.5 3.5 0 0 1 0 7H6"/></svg>
+                        <span>${escapeHtml(rec)}</span>
+                    </div>
+                    ${sendBtnHtml}
                 </div>`;
       });
       html += `</div>`;
@@ -202,6 +229,7 @@ export async function triggerAnalysis(sessionId, force) {
     aiText.innerHTML =
       html || "<span style='color:red;'>Failed to parse analysis data.</span>";
     state.summaryCache[sessionId] = aiText.innerHTML;
+    attachRecommendationHandlers(aiText);
 
     if (data.shortTitle) {
       const itemEl = document.querySelector(
@@ -241,4 +269,33 @@ export async function triggerAnalysis(sessionId, force) {
       btn.disabled = false;
     }
   }
+}
+
+function attachRecommendationHandlers(container) {
+  if (!container || !isSidecarMode()) return;
+  container.querySelectorAll(".rec-send-agent-btn").forEach((btn) => {
+    if (btn.dataset.bound) return;
+    btn.dataset.bound = "true";
+    btn.addEventListener("click", async (e) => {
+      e.stopPropagation();
+      const rec = btn.dataset.rec;
+      if (!rec) return;
+      const originalHtml = btn.innerHTML;
+      btn.disabled = true;
+      btn.innerHTML = "⏳ Sending...";
+      try {
+        await sendToActiveAgent(
+          `Please apply this recommendation from the Brain Visualizer analysis:\n\n> ${rec}`
+        );
+        btn.innerHTML = "✅ Sent to Agent!";
+      } catch (err) {
+        btn.innerHTML = `❌ ${err.message}`;
+      } finally {
+        setTimeout(() => {
+          btn.innerHTML = originalHtml;
+          btn.disabled = false;
+        }, 2500);
+      }
+    });
+  });
 }

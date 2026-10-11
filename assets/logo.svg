@@ -1,0 +1,28 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64" width="64" height="64" fill="none">
+  <defs>
+    <linearGradient id="bgGrad" x1="6" y1="6" x2="58" y2="58" gradientUnits="userSpaceOnUse">
+      <stop offset="0%" stop-color="#0f172a"/>
+      <stop offset="100%" stop-color="#1e1b4b"/>
+    </linearGradient>
+    <linearGradient id="brainGrad" x1="14" y1="14" x2="50" y2="50" gradientUnits="userSpaceOnUse">
+      <stop offset="0%" stop-color="#38bdf8"/>
+      <stop offset="50%" stop-color="#8b5cf6"/>
+      <stop offset="100%" stop-color="#ec4899"/>
+    </linearGradient>
+  </defs>
+  <!-- 10% margin around rounded square -->
+  <rect x="6" y="6" width="52" height="52" rx="13" fill="url(#bgGrad)" stroke="#6366f1" stroke-width="2"/>
+  <!-- Left hemisphere neural nodes & pathways -->
+  <path d="M30 18C23 18 18 22.5 18 28C18 30.2 19 32.1 20.5 33.4C19.2 34.8 18.5 36.7 18.5 38.8C18.5 43.5 22.5 47 28 47H30V18Z" stroke="url(#brainGrad)" stroke-width="2.6" stroke-linejoin="round"/>
+  <!-- Right hemisphere neural nodes & pathways -->
+  <path d="M34 18C41 18 46 22.5 46 28C46 30.2 45 32.1 43.5 33.4C44.8 34.8 45.5 36.7 45.5 38.8C45.5 43.5 41.5 47 36 47H34V18Z" stroke="url(#brainGrad)" stroke-width="2.6" stroke-linejoin="round"/>
+  <!-- Circuit traces inside hemispheres -->
+  <path d="M23 27H27L29 29.5M22 38H26.5L29 35.5" stroke="#38bdf8" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+  <path d="M41 27H37L35 29.5M42 38H37.5L35 35.5" stroke="#c084fc" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+  <!-- Neural pulse nodes -->
+  <circle cx="23" cy="27" r="2" fill="#38bdf8"/>
+  <circle cx="22" cy="38" r="2" fill="#38bdf8"/>
+  <circle cx="41" cy="27" r="2" fill="#e879f9"/>
+  <circle cx="42" cy="38" r="2" fill="#e879f9"/>
+  <circle cx="32" cy="32.5" r="2.5" fill="#34d399"/>
+</svg>

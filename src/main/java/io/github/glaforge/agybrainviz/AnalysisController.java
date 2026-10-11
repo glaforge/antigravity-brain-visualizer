@@ -83,6 +83,10 @@ public class AnalysisController {
     @Serdeable
     public record ProgressResponse(String phase, int progress) {}
 
+    @ReflectiveAccess
+    @Serdeable
+    public record ApiStatusResponse(boolean apiKeyConfigured, String model, String error) {}
+
     private final AnalyzerService analyzerService;
     private final ExecutorService executor;
 
@@ -98,6 +102,20 @@ public class AnalysisController {
         this.executor = executor;
     }
 
+    @Get(value = "/status", produces = "application/json")
+    public ApiStatusResponse getStatus() {
+        Optional<String> apiKey = ChatModelFactory.resolveApiKey();
+        String resolvedModel = ChatModelFactory.resolveModelName(modelName);
+        if (apiKey.isEmpty()) {
+            return new ApiStatusResponse(
+                false,
+                resolvedModel,
+                "GEMINI_API_KEY is not set in the host environment. Set GEMINI_API_KEY in your shell or sidecar.json env to enable AI Session Analysis and the Session Assistant."
+            );
+        }
+        return new ApiStatusResponse(true, resolvedModel, "");
+    }
+
     private static final Map<String, Object> runningTasks = new ConcurrentHashMap<>();
 
     @ExecuteOn(TaskExecutors.IO)
@@ -107,9 +125,9 @@ public class AnalysisController {
         @QueryValue Optional<Boolean> force,
         @QueryValue Optional<String> flavor
     ) throws IOException {
-        String apiKey = System.getenv("GEMINI_API_KEY");
-        if (apiKey == null || apiKey.isEmpty()) {
-            return "{\"summary\": \"Error: GEMINI_API_KEY environment variable is not set. Cannot use LangChain4j analysis.\"}";
+        Optional<String> apiKey = ChatModelFactory.resolveApiKey();
+        if (apiKey.isEmpty()) {
+            return "{\"error\": \"GEMINI_API_KEY_MISSING\", \"summary\": \"Error: GEMINI_API_KEY environment variable is not set in the host environment. Set GEMINI_API_KEY (or configure env.GEMINI_API_KEY in sidecar.json) and restart.\"}";
         }
 
         Optional<Path> convDirOpt = BrainController.resolveConversationDir(id, flavor);

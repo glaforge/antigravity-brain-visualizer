@@ -1,4 +1,20 @@
 <!DOCTYPE html>
+<!--
+ Copyright 2026 Google LLC
+
+ Licensed under the Apache License, Version 2.0 (the "License");
+ you may not use this file except in compliance with the License.
+ You may obtain a copy of the License at
+
+     http://www.apache.org/licenses/LICENSE-2.0
+
+ Unless required by applicable law or agreed to in writing, software
+ distributed under the License is distributed on an "AS IS" BASIS,
+ WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ See the License for the specific language governing permissions and
+ limitations under the License.
+-->
+
 <html lang="en">
 
 <head>
@@ -8,7 +24,8 @@
     <link rel="stylesheet"
         href="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.9.0/styles/tokyo-night-dark.min.css">
     <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/diff2html/bundles/css/diff2html.min.css">
-    <link rel="stylesheet" href="style.css?v=6">
+    <link rel="stylesheet" href="style.css?v=8">
+    <script src="/preload.js"></script>
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
     <link
@@ -22,26 +39,29 @@
         <aside class="sidebar">
             <div class="sidebar-header">
                 <div class="logo">
-                    <img src="logo.png" alt="Antigravity Brain Visualizer">
+                    <div class="logo-brand">
+                        <div class="logo-icon">🧠</div>
+                        <div class="logo-text">
+                            <span class="logo-title">Brain Visualizer</span>
+                            <span class="logo-subtitle">Antigravity Sessions</span>
+                        </div>
+                    </div>
                 </div>
-                <div style="margin-top: 16px; padding: 0 24px;">
-                    <select id="flavor-select"
-                        style="width: 100%; padding: 8px; border-radius: 6px; background: rgba(30, 41, 59, 0.5); color: var(--text-primary); border: 1px solid var(--border-color); outline: none; font-size: 0.9rem;">
-                        <option value="antigravity-cli">Loading flavors...</option>
+                <div style="margin-top: 12px; padding: 0 16px;">
+                    <select id="flavor-select" class="sidebar-select">
+                        <option value="antigravity">Loading flavors...</option>
                     </select>
                 </div>
-                <div style="margin-top: 8px; padding: 0 24px;">
-                    <select id="project-filter-select"
-                        style="width: 100%; padding: 7px 8px; border-radius: 6px; background: rgba(30, 41, 59, 0.5); color: var(--text-primary); border: 1px solid var(--border-color); outline: none; font-size: 0.82rem;"
+                <div style="margin-top: 8px; padding: 0 16px;">
+                    <select id="project-filter-select" class="sidebar-select" style="font-size: 0.8rem;"
                         title="Filter by Project or Group by Project">
                         <option value="all">📁 All Projects (Timeline)</option>
                         <option value="__grouped__">📂 Group by Project</option>
                     </select>
                 </div>
-                <div style="margin-top: 10px; padding: 0 24px; display: flex; gap: 8px;">
+                <div style="margin-top: 8px; padding: 0 16px; display: flex; gap: 6px;">
                     <div style="position: relative; flex: 1; display: flex; align-items: center;">
-                        <input type="text" id="conversation-search" placeholder="Search sessions..."
-                            style="width: 100%; padding: 6px 28px 6px 12px; border-radius: 6px; background: rgba(30, 41, 59, 0.5); color: var(--text-primary); border: 1px solid var(--border-color); outline: none; font-size: 0.85rem;" />
+                        <input type="text" id="conversation-search" class="sidebar-input" placeholder="Search sessions..." />
                         <svg id="clear-search-btn"
                             style="position: absolute; right: 8px; cursor: pointer; color: var(--text-secondary); display: none;"
                             width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor"
@@ -50,10 +70,9 @@
                             <line x1="6" y1="6" x2="18" y2="18"></line>
                         </svg>
                     </div>
-                    <button id="refresh-conversations-btn" class="icon-btn"
-                        style="padding: 6px 8px; border-radius: 6px; background: rgba(30, 41, 59, 0.5); border: 1px solid var(--border-color); color: var(--text-primary); cursor: pointer; display: flex; align-items: center; justify-content: center;"
+                    <button id="refresh-conversations-btn" class="sidebar-icon-btn"
                         title="Refresh Sessions">
-                        <svg style="transition: transform 0.3s ease;" width="16" height="16" viewBox="0 0 24 24"
+                        <svg style="transition: transform 0.3s ease;" width="15" height="15" viewBox="0 0 24 24"
                             fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"
                             stroke-linejoin="round">
                             <polyline points="23 4 23 10 17 10"></polyline>
@@ -61,10 +80,9 @@
                             <path d="M3.51 9a9 9 0 0 1 14.85-3.36L23 10M1 14l4.64 4.36A9 9 0 0 0 20.49 15"></path>
                         </svg>
                     </button>
-                    <button id="sort-conversations-btn" class="icon-btn"
-                        style="padding: 6px 8px; border-radius: 6px; background: rgba(30, 41, 59, 0.5); border: 1px solid var(--border-color); color: var(--text-primary); cursor: pointer; display: flex; align-items: center; justify-content: center;"
+                    <button id="sort-conversations-btn" class="sidebar-icon-btn"
                         title="Toggle Ascending/Descending Order">
-                        <svg style="transition: transform 0.3s ease;" width="16" height="16" viewBox="0 0 24 24"
+                        <svg style="transition: transform 0.3s ease;" width="15" height="15" viewBox="0 0 24 24"
                             fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"
                             stroke-linejoin="round">
                             <path d="m21 16-4 4-4-4"></path>
@@ -74,15 +92,14 @@
                         </svg>
                     </button>
                 </div>
-                <div style="margin-top: 8px; padding: 0 24px; display: flex; align-items: center; justify-content: space-between; font-size: 0.78rem; color: var(--text-secondary);">
+                <div style="margin-top: 8px; padding: 0 16px; display: flex; align-items: center; justify-content: space-between; font-size: 0.75rem; color: var(--text-secondary);">
                     <label style="display: flex; align-items: center; gap: 5px; cursor: pointer; user-select: none;" title="Nest subagents under parent conversations">
-                        <input type="checkbox" id="nest-subagents-toggle" checked style="accent-color: var(--accent-color); cursor: pointer;" />
+                        <input type="checkbox" id="nest-subagents-toggle" checked style="accent-color: var(--accent-blue); cursor: pointer;" />
                         <span>Nest Subagents</span>
                     </label>
                     <div style="display: flex; align-items: center; gap: 4px;">
-                        <span style="font-size: 0.75rem;">Sort:</span>
-                        <select id="sort-criteria-select"
-                            style="padding: 2px 4px; border-radius: 4px; background: rgba(30, 41, 59, 0.5); color: var(--text-primary); border: 1px solid var(--border-color); font-size: 0.75rem; outline: none; cursor: pointer;">
+                        <span style="font-size: 0.73rem;">Sort:</span>
+                        <select id="sort-criteria-select" class="sidebar-select-sm">
                             <option value="time">Time</option>
                             <option value="steps">Steps</option>
                         </select>
@@ -99,48 +116,61 @@
         <!-- Main Content Area -->
         <main class="main-content">
             <header class="main-header">
+                <div id="api-key-error-banner" class="api-error-banner hidden">
+                    <span class="api-error-icon">⚠️</span>
+                    <div class="api-error-body">
+                        <strong>GEMINI_API_KEY is not configured in the host environment.</strong>
+                        <span id="api-key-error-detail">Set <code>GEMINI_API_KEY</code> in your shell environment or inside <code>sidecars/visualizer/sidecar.json</code> <code>env</code> and restart to enable AI Session Analysis and the Session Assistant.</span>
+                    </div>
+                </div>
                 <div class="header-top"
-                    style="display:flex; justify-content:space-between; width:100%; align-items:flex-start;">
-                    <div style="display: flex; align-items: center; gap: 16px;">
-                        <button id="sidebar-toggle-btn"
-                            style="background:transparent; border:none; color:var(--text-primary); cursor:pointer; padding:4px; display:flex; align-items:center;"
+                    style="display:flex; justify-content:space-between; width:100%; align-items:center; gap: 12px;">
+                    <div style="display: flex; align-items: center; gap: 10px; min-width: 0; flex: 1;">
+                        <button id="sidebar-toggle-btn" class="sidebar-toggle-btn"
                             title="Toggle Sidebar (Cmd+B)">
-                            <svg class="sidebar-chevron" width="16" height="16" viewBox="0 0 16 16" fill="currentColor"
+                            <svg class="sidebar-chevron" width="14" height="14" viewBox="0 0 16 16" fill="currentColor"
                                 style="margin-right: 2px; transition: transform 0.2s;">
                                 <path fill-rule="evenodd" clip-rule="evenodd"
                                     d="M10.072 11.428 6.643 8l3.429-3.428L9.07 3.5 4.57 8l4.5 4.5 1.002-1.072z" />
                             </svg>
-                            <svg class="sidebar-icon-expanded" width="22" height="22" viewBox="0 0 16 16"
+                            <svg class="sidebar-icon-expanded" width="18" height="18" viewBox="0 0 16 16"
                                 fill="currentColor">
                                 <path fill-rule="evenodd" clip-rule="evenodd"
                                     d="M2 3v10h12V3H2zm11 1H6v8h7V4zM3 4v8h2V4H3z" />
                             </svg>
-                            <svg class="sidebar-icon-collapsed hidden" width="22" height="22" viewBox="0 0 16 16"
+                            <svg class="sidebar-icon-collapsed hidden" width="18" height="18" viewBox="0 0 16 16"
                                 fill="currentColor">
                                 <path fill-rule="evenodd" clip-rule="evenodd" d="M2 3v10h12V3H2zm1 9h10V4H3v8z" />
                             </svg>
                         </button>
-                        <div class="header-info">
-                            <h2 id="current-session-title">Select a session</h2>
-                            <div id="current-session-id" class="session-id-subtitle"></div>
+                        <div class="header-info" style="min-width: 0; flex: 1;">
+                            <div style="display: flex; align-items: center; gap: 8px; flex-wrap: wrap;">
+                                <h2 id="current-session-title">Select a session</h2>
+                                <span id="current-session-id" class="session-id-subtitle"></span>
+                            </div>
                         </div>
                     </div>
-                    <button id="chat-toggle-btn" class="btn primary" style="display:flex; align-items:center; gap:6px; font-size:0.85rem; padding:6px 14px;" title="Toggle Chat Assistant (Cmd+K)">
-                        <span>💬</span> Chat Assistant
-                    </button>
+                    <div style="display:flex; align-items:center; gap:6px; flex-shrink:0;">
+                        <button id="open-in-host-btn" class="btn secondary hidden" style="display:none; align-items:center; gap:5px; font-size:0.78rem; padding:5px 10px;" title="Switch Antigravity host conversation to this session">
+                            <span>↗</span> Open in Antigravity
+                        </button>
+                        <button id="chat-toggle-btn" class="btn primary" style="display:flex; align-items:center; gap:5px; font-size:0.78rem; padding:5px 12px;" title="Toggle Chat Assistant (Cmd+K)">
+                            <span>💬</span> Assistant
+                        </button>
+                    </div>
                 </div>
 
                 <div id="ai-summary-container" class="ai-summary hidden">
                     <div class="ai-summary-header" id="ai-summary-header"
                         style="display:flex; justify-content:space-between; align-items:center; cursor:pointer;" title="Toggle Conversation Analysis (Cmd+Shift+A)">
-                        <h3>Conversation Analysis</h3>
-                        <div style="display:flex; align-items:center; gap:12px;">
-                            <button id="analysis-chat-btn" class="btn secondary" style="padding: 6px 12px; font-size: 0.85rem; margin: 0; background: rgba(59, 130, 246, 0.15); border: 1px solid rgba(59, 130, 246, 0.4); color: #60a5fa;" title="Ask questions about this analysis">
-                                💬 Discuss Analysis
+                        <h3>✨ Conversation Analysis</h3>
+                        <div style="display:flex; align-items:center; gap:8px;">
+                            <button id="analysis-chat-btn" class="btn secondary" style="padding: 4px 10px; font-size: 0.75rem; margin: 0;" title="Ask questions about this analysis">
+                                💬 Discuss
                             </button>
                             <button id="summarize-btn" class="btn primary disabled" disabled
-                                style="padding: 6px 12px; font-size: 0.85rem; margin: 0;">
-                                <span class="sparkle-icon">✨</span> Recompute Analysis
+                                style="padding: 4px 10px; font-size: 0.75rem; margin: 0;">
+                                <span class="sparkle-icon">✨</span> Recompute
                             </button>
                             <span class="chevron" style="transform: rotate(90deg);">›</span>
                         </div>
@@ -265,27 +295,76 @@
 
     <!-- Conversation Popover -->
     <div id="conv-popover" class="hidden"
-        style="position: fixed; z-index: 1000; background: rgba(15, 23, 42, 0.95); border: 1px solid var(--border-color); border-radius: 8px; padding: 12px; box-shadow: 0 10px 25px rgba(0,0,0,0.5); pointer-events: none; width: 380px; color: var(--text-primary); backdrop-filter: blur(8px); -webkit-backdrop-filter: blur(8px);">
-        <div id="popover-title" style="font-weight: 600; font-size: 0.95rem; margin-bottom: 8px; line-height: 1.4;">
+        style="position: fixed; z-index: 1000; background: var(--bg-card); border: 1px solid var(--border-color); border-radius: 10px; padding: 12px; box-shadow: 0 10px 25px rgba(0,0,0,0.2); pointer-events: none; width: 340px; max-width: 90vw; color: var(--text-primary);">
+        <div id="popover-title" style="font-weight: 600; font-size: 0.9rem; margin-bottom: 8px; line-height: 1.4;">
         </div>
-        <div style="font-size: 0.8rem; color: var(--text-secondary); margin-bottom: 6px; display: flex; align-items: center; gap: 8px; flex-wrap: wrap;">
+        <div style="font-size: 0.78rem; color: var(--text-secondary); margin-bottom: 6px; display: flex; align-items: center; gap: 8px; flex-wrap: wrap;">
             <span id="popover-status-badge"></span>
-            <span id="popover-steps-badge" style="background: rgba(255,255,255,0.06); padding: 2px 6px; border-radius: 4px; font-size: 0.75rem;"></span>
+            <span id="popover-steps-badge" style="background: var(--bg-elevated); border: 1px solid var(--border-color); padding: 2px 6px; border-radius: 4px; font-size: 0.72rem;"></span>
             <span id="popover-time"></span>
         </div>
-        <div id="popover-project-row" style="font-size: 0.78rem; color: var(--text-secondary); margin-bottom: 6px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;">
+        <div id="popover-project-row" style="font-size: 0.76rem; color: var(--text-secondary); margin-bottom: 6px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;">
             <span style="opacity: 0.7;">📁</span> <span id="popover-project"></span>
         </div>
-        <div id="popover-subagent-row" style="font-size: 0.78rem; color: var(--text-secondary); margin-bottom: 6px; display: none;">
+        <div id="popover-subagent-row" style="font-size: 0.76rem; color: var(--text-secondary); margin-bottom: 6px; display: none;">
             <span style="opacity: 0.7;">🤖</span> <span id="popover-subagent"></span>
         </div>
         <div
-            style="font-size: 0.75rem; font-family: var(--font-mono); color: var(--text-secondary); opacity: 0.8; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; width: 100%; box-sizing: border-box;">
+            style="font-size: 0.72rem; font-family: var(--font-mono); color: var(--text-secondary); opacity: 0.85; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; width: 100%; box-sizing: border-box;">
             <span style="color: var(--accent-purple);">ID:</span> <span id="popover-id"></span>
         </div>
     </div>
 
-    <script type="module" src="app.js?v=7"></script>
+    <script>
+        (async () => {
+            if (window.location.protocol !== "plugin:") {
+                const s = document.createElement("script");
+                s.type = "module";
+                s.src = "app.js?v=9";
+                document.body.appendChild(s);
+                return;
+            }
+            const files = [
+                "modules/utils.js",
+                "modules/ui.js",
+                "modules/stats.js",
+                "modules/chat.js",
+                "modules/analysis.js",
+                "modules/artifacts.js",
+                "modules/messages.js",
+                "modules/timeline.js",
+                "app.js"
+            ];
+            const sources = {};
+            await Promise.all(files.map(async (f) => {
+                const res = await fetch("/" + f + "?v=9");
+                if (!res.ok) {
+                    throw new Error(`Failed to fetch module ${f}: HTTP ${res.status}`);
+                }
+                sources[f] = await res.text();
+            }));
+            const blobUrls = {};
+            for (const f of files) {
+                let code = sources[f];
+                for (const [depPath, blobUrl] of Object.entries(blobUrls)) {
+                    const depName = depPath.replace("modules/", "");
+                    code = code
+                        .replaceAll(`"./${depPath}"`, `"${blobUrl}"`)
+                        .replaceAll(`'./${depPath}'`, `'${blobUrl}'`)
+                        .replaceAll(`"./${depName}"`, `"${blobUrl}"`)
+                        .replaceAll(`'./${depName}'`, `'${blobUrl}'`);
+                }
+                blobUrls[f] = URL.createObjectURL(new Blob([code], { type: "text/javascript" }));
+            }
+            await import(blobUrls["app.js"]);
+        })().catch((err) => {
+            console.error("Failed to bootstrap Brain Visualizer:", err);
+            const container = document.getElementById("transcript-container");
+            if (container) {
+                container.innerHTML = `<div class="api-error-banner" style="margin:16px;"><span class="api-error-icon">🛑</span><div class="api-error-body"><strong>Frontend Bootstrap Error</strong><span>${err.message}</span></div></div>`;
+            }
+        });
+    </script>
 </body>
 
 </html>

@@ -90,8 +90,8 @@ export async function renderMessagesView(container, conversationId, flavor) {
         : `<code style="color:#a78bfa;">${escapeHtml(sender)}</code>`;
 
       html += `
-        <div class="message-card" style="background:rgba(30, 41, 59, 0.4); border:1px solid var(--border-color); border-radius:10px; overflow:hidden; transition:all 0.2s;">
-          <div style="padding:12px 16px; background:rgba(15, 23, 42, 0.5); border-bottom:1px solid var(--border-color); display:flex; justify-content:space-between; align-items:center;">
+        <div class="message-card" style="background:var(--bg-card); border:1px solid var(--border-color); border-radius:10px; overflow:hidden; transition:all 0.2s;">
+          <div style="padding:12px 16px; background:var(--bg-elevated); border-bottom:1px solid var(--border-color); display:flex; justify-content:space-between; align-items:center;">
             <div style="display:flex; align-items:center; gap:10px;">
               <span style="font-size:1.1rem;">📨</span>
               <div>
@@ -126,7 +126,7 @@ export async function renderMessagesView(container, conversationId, flavor) {
             ${
               sourceMeta
                 ? `
-              <div style="margin-top:12px; padding-top:12px; border-top:1px solid rgba(255,255,255,0.05); font-size:0.75rem; color:var(--text-secondary);">
+              <div style="margin-top:12px; padding-top:12px; border-top:1px solid var(--border-color); font-size:0.75rem; color:var(--text-secondary);">
                 <div style="font-weight:600; margin-bottom:4px; color:var(--text-primary);">Source Metadata:</div>
                 <pre class="code-block" style="margin:0; padding:8px 12px; font-size:0.75rem;"><code>${syntaxHighlight(
                   JSON.stringify(sourceMeta, null, 2)

@@ -209,4 +209,17 @@ class BrainControllerTest {
             );
         Assertions.assertEquals(io.micronaut.http.HttpStatus.BAD_REQUEST, ex.getStatus());
     }
+
+    @Test
+    void testWidgetPathTraversalEndpoint() {
+        io.micronaut.http.client.exceptions.HttpClientResponseException ex =
+            Assertions.assertThrows(
+                io.micronaut.http.client.exceptions.HttpClientResponseException.class,
+                () ->
+                    client
+                        .toBlocking()
+                        .exchange(HttpRequest.GET("/api/brain/conversations/..%2F..%2Fetc/widget"))
+            );
+        Assertions.assertEquals(io.micronaut.http.HttpStatus.BAD_REQUEST, ex.getStatus());
+    }
 }

@@ -1,3 +1,17 @@
+// Copyright 2026 Google LLC
+//
+// Licensed under the Apache License, Version 2.0 (the "License");
+// you may not use this file except in compliance with the License.
+// You may obtain a copy of the License at
+//
+//     http://www.apache.org/licenses/LICENSE-2.0
+//
+// Unless required by applicable law or agreed to in writing, software
+// distributed under the License is distributed on an "AS IS" BASIS,
+// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+// See the License for the specific language governing permissions and
+// limitations under the License.
+
 plugins {
     id("io.micronaut.application") version "5.0.0"
     id("com.gradleup.shadow") version "9.4.1"
@@ -116,3 +130,41 @@ spotless {
         prettier()
     }
 }
+
+tasks.register("bundleSidecarBinary", Copy) {
+    description = "Compiles the GraalVM native binary and copies it into sidecars/visualizer/bin/"
+    group = "distribution"
+    dependsOn tasks.named("nativeCompile")
+    doFirst {
+        // Unlink existing binary first so macOS arm64 allocates a fresh inode
+        // and does not SIGKILL due to stale kernel vnode code-signing cache.
+        delete(layout.projectDirectory.file("sidecars/visualizer/bin/agy-brain-viz"))
+    }
+    from(layout.buildDirectory.file("native/nativeCompile/agy-brain-viz"))
+    into(layout.projectDirectory.dir("sidecars/visualizer/bin"))
+    filePermissions {
+        unix("rwxr-xr-x")
+    }
+}
+
+tasks.register("installPlugin", Sync) {
+    description = "Bundles the native binary and installs the agy-brain-viz plugin into ~/.gemini/config/plugins/agy-brain-viz"
+    group = "distribution"
+    dependsOn tasks.named("bundleSidecarBinary")
+    doFirst {
+        // Unlink existing installed binary first so macOS arm64 allocates a fresh inode.
+        delete(file("${System.getProperty('user.home')}/.gemini/config/plugins/agy-brain-viz/sidecars/visualizer/bin/agy-brain-viz"))
+    }
+    into( file("${System.getProperty('user.home')}/.gemini/config/plugins/agy-brain-viz") )
+    from(layout.projectDirectory) {
+        include "plugin.json"
+        include "README.md"
+        include "LICENSE"
+        include "logo.png"
+        include "screenshot.png"
+        include "assets/**"
+        include "sidecars/**"
+        include "skills/**"
+    }
+}
+

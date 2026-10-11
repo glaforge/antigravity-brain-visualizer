@@ -1,12 +1,8 @@
-<p align="center">
-  <img src="logo.png" alt="Antigravity Brain Visualizer Logo" width="800"/>
-</p>
+![Antigravity Brain Visualizer Logo](logo.png)
 
-# Antigravity Brain Visualizer
+# Antigravity Brain Visualizer (`agy-brain-viz`)
 
-<p align="center">
-  <img src="screenshot.png" alt="Antigravity Brain Visualizer Screenshot" width="800"/>
-</p>
+![Antigravity Brain Visualizer Full Workspace View](screenshot.png)
 
 ## What is this project?
 The Antigravity Brain Visualizer is a dedicated companion tool for developers working with Antigravity AI agents. Antigravity agents construct complex reasoning chains, dispatch background tasks, spawn subagents, generate persistent artifacts, take workspace snapshots, and execute system commands over long-running sessions. The agent records all of these interactions in detailed JSONL transcript files, Git snapshot repositories, and artifact metadata inside the agent's "brain" directory. 
@@ -85,9 +81,31 @@ This project prioritizes a lightweight, high-performance, and maintainable archi
 - **Diff Viewer**: Integrated with [diff2html](https://diff2html.xyz/) custom-styled with dark-mode overrides, synchronized sticky gutters, and split/unified toggling.
 - **Frontend**: A zero-build Vanilla JavaScript, HTML, and CSS single-page application. It avoids heavy framework overhead, relying instead on standard browser DOM APIs, customized CSS grid/flexbox layouts, and minimal dependencies (`marked.js` and `highlight.js`) for Markdown rendering and code syntax highlighting.
 
-## Installation
+## Antigravity Plugin & Side-Pane UI Extension (`agy-brain-viz`)
 
-The easiest way to install and use the Antigravity Brain Visualizer is to download the pre-compiled native executable for your operating system.
+The visualizer can be installed directly into **Antigravity 2.0** as a native plugin (`agy-brain-viz`) providing both a dockable **Side-Pane UI Extension** and an inline **Generative UI (`/brain-visualizer`)** chat widget.
+
+![Brain Visualizer running in the Antigravity side pane](assets/sidepane-preview.png)
+
+### Building & Installing the Plugin
+
+1. Ensure [GraalVM](https://www.graalvm.org/) (Java 21+) is active in your shell environment.
+2. Run the `installPlugin` Gradle task to compile the standalone GraalVM native executable, bundle it into `sidecars/visualizer/bin/agy-brain-viz`, and sync the plugin bundle into `~/.gemini/config/plugins/agy-brain-viz`:
+
+```bash
+./gradlew installPlugin
+```
+
+3. In Antigravity, open **Customizations → Installed** and verify **Antigravity Brain Visualizer** (`agy-brain-viz`) is enabled.
+
+### Using the Plugin in Antigravity
+
+- **Side-Pane UI Extension**: Click the **⋮** menu in the top-right corner of any conversation and select **Extensions → Brain Visualizer**, or click a `[Brain Visualizer](sidecar://agy-brain-viz/visualizer/)` pill in chat. The panel automatically tracks your active conversation (`✓ Active in Host`) and synchronizes with Antigravity's Light and Dark themes.
+- **Inline Generative UI Widget (`/brain-visualizer`)**: Type `/brain-visualizer` in chat to render a self-contained interactive `<agent-embed>` card directly in the conversation stream along with a one-click pill to open the side pane.
+
+## Standalone Installation
+
+You can also run the Antigravity Brain Visualizer as a standalone desktop web application by downloading the pre-compiled native executable for your operating system.
 
 1. Navigate to the [Releases](https://github.com/glaforge/antigravity-brain-visualizer/releases) section of this repository.
 2. Download the appropriate `.zip` asset for your OS (macOS, Linux, or Windows).
@@ -162,7 +180,7 @@ export GEMINI_API_KEY="your-api-key-here"
 *(Note: Start-up times will be practically instantaneous compared to the standard JVM version).*
 
 ## License
-This project is licensed under the Apache 2.0 License. See the [LICENSE](../LICENSE) file for details.
+This project is licensed under the Apache 2.0 License. See the [LICENSE](LICENSE) file for details.
 
 ## Disclaimer
 This is not an officially supported Google product.

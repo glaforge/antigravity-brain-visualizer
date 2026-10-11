@@ -20,17 +20,19 @@ import dev.langchain4j.model.chat.listener.ChatModelErrorContext;
 import dev.langchain4j.model.chat.listener.ChatModelListener;
 import dev.langchain4j.model.chat.listener.ChatModelRequestContext;
 import dev.langchain4j.model.chat.listener.ChatModelResponseContext;
+import dev.langchain4j.model.chat.request.ChatRequest;
 import dev.langchain4j.model.chat.request.ResponseFormat;
+import dev.langchain4j.model.chat.response.ChatResponse;
 import dev.langchain4j.model.google.genai.GoogleGenAiChatModel;
 import io.micronaut.context.annotation.Factory;
 import io.micronaut.context.annotation.Value;
 import jakarta.inject.Singleton;
 import java.io.FileWriter;
 import java.io.PrintWriter;
-import java.nio.file.Paths;
 import java.time.Duration;
 import java.time.LocalDateTime;
 import java.util.List;
+import java.util.Optional;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -45,6 +47,18 @@ public class ChatModelFactory {
 
     @Value("${gemini.debug:false}")
     protected boolean debugConfig;
+
+    public static Optional<String> resolveApiKey() {
+        String env = System.getenv("GEMINI_API_KEY");
+        if (env != null && !env.isBlank()) {
+            return Optional.of(env.trim());
+        }
+        String sys = System.getProperty("gemini.api.key");
+        if (sys != null && !sys.isBlank()) {
+            return Optional.of(sys.trim());
+        }
+        return Optional.empty();
+    }
 
     public static String resolveModelName(String configured) {
         String sys = System.getProperty("gemini.model");
@@ -80,10 +94,22 @@ public class ChatModelFactory {
 
     @Singleton
     public ChatModel chatModel() {
-        String apiKey = System.getenv("GEMINI_API_KEY");
-        if (apiKey == null || apiKey.isEmpty()) {
-            apiKey = System.getProperty("gemini.api.key", "dummy");
+        Optional<String> apiKeyOpt = resolveApiKey();
+        if (apiKeyOpt.isEmpty()) {
+            LOG.error(
+                "GEMINI_API_KEY is not set in the host environment. AI Analysis and Session Assistant calls will fail fast."
+            );
+            return new ChatModel() {
+                @Override
+                public ChatResponse doChat(ChatRequest chatRequest) {
+                    throw new IllegalStateException(
+                        "GEMINI_API_KEY environment variable is not set in the host environment. " +
+                        "Set GEMINI_API_KEY (or configure env.GEMINI_API_KEY in sidecar.json) and restart."
+                    );
+                }
+            };
         }
+        String apiKey = apiKeyOpt.get();
         String resolvedModel = resolveModelName(modelName);
         boolean verboseDebug = resolveDebug(debugConfig);
 
