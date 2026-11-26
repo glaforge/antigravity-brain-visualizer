@@ -44,7 +44,7 @@ public class Application {
 
                 Options:
                   -Dmicronaut.server.port=<port>   Run on a custom port (default: 8080)
-                  -Dgemini.model=<model>           Override Gemini model (default: gemini-3.8-flash)
+                  -Dgemini.model=<model>           Override Gemini model (default: gemini-4-hydrogen)
                   -Dgemini.debug=<true|false>      Enable verbose LLM request/response debug logging
                   -h, --help                       Show this help message and exit
                   -v, --version                    Print the version information and exit

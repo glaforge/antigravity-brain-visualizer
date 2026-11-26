@@ -22,9 +22,9 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Antigravity Brain Visualizer</title>
     <link rel="stylesheet"
-        href="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.9.0/styles/tokyo-night-dark.min.css">
+        href="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.12.0/styles/tokyo-night-dark.min.css">
     <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/diff2html/bundles/css/diff2html.min.css">
-    <link rel="stylesheet" href="style.css?v=8">
+    <link rel="stylesheet" href="style.css?v=9">
     <script src="/preload.js"></script>
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
@@ -199,6 +199,11 @@
                         <span class="tab-label">Subagent Messages</span>
                         <span id="messages-counter" class="counter-badge">0</span>
                     </button>
+                    <button id="tab-swarm-btn" class="view-tab-btn tab-btn hidden" title="View multi-agent swarm plan, members, and message board">
+                        <span class="tab-icon">🐝</span>
+                        <span class="tab-label">Swarm &amp; Agents</span>
+                        <span id="swarm-counter" class="counter-badge">0</span>
+                    </button>
                 </div>
             </header>
 
@@ -215,6 +220,9 @@
                 </div>
                 <div class="messages-container hidden" id="messages-container" style="flex: 1; overflow-y: auto; padding: 24px;">
                     <!-- Messages dynamically populated -->
+                </div>
+                <div class="swarm-container hidden" id="swarm-container" style="flex: 1; overflow-y: auto; padding: 24px;">
+                    <!-- Swarm & Subagents dynamically populated -->
                 </div>
                 <!-- Timeline Scrubber -->
                 <div id="timeline-track">
@@ -271,13 +279,13 @@
                     Send
                 </button>
             </div>
-        </aside></main>
+        </aside>
     </div>
 
 
 
     <script src="https://cdn.jsdelivr.net/npm/marked/marked.min.js"></script>
-    <script src="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.9.0/highlight.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.12.0/highlight.min.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/diff2html/bundles/js/diff2html-ui.min.js"></script>
 
     <!-- File Preview Modal -->
@@ -320,7 +328,7 @@
             if (window.location.protocol !== "plugin:") {
                 const s = document.createElement("script");
                 s.type = "module";
-                s.src = "app.js?v=9";
+                s.src = "app.js?v=10";
                 document.body.appendChild(s);
                 return;
             }
@@ -332,12 +340,13 @@
                 "modules/analysis.js",
                 "modules/artifacts.js",
                 "modules/messages.js",
+                "modules/swarm.js",
                 "modules/timeline.js",
                 "app.js"
             ];
             const sources = {};
             await Promise.all(files.map(async (f) => {
-                const res = await fetch("/" + f + "?v=9");
+                const res = await fetch("/" + f + "?v=10");
                 if (!res.ok) {
                     throw new Error(`Failed to fetch module ${f}: HTTP ${res.status}`);
                 }

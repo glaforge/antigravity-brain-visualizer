@@ -67,6 +67,12 @@ public class GenerativeUiWidgetBuilder {
         long inputTokens = 0;
         long thinkingTokens = 0;
         long outputTokens = 0;
+        boolean hasNativeTokens = false;
+        long nativeInputTokens = 0;
+        long nativeCacheReadTokens = 0;
+        long nativeOutputTokens = 0;
+        double nativeCost = 0.0;
+        Map<String, Integer> modelCounts = new HashMap<>();
 
         Map<String, Integer> toolFrequencies = new HashMap<>();
         List<SequenceStat> sequences = new ArrayList<>();
@@ -159,7 +165,10 @@ public class GenerativeUiWidgetBuilder {
                     toolFrequencies.put(tName, toolFrequencies.getOrDefault(tName, 0) + 1);
                 }
             } else if (
-                type.contains("TOOL") || type.contains("VIEW_FILE") || type.contains("COMMAND")
+                type.contains("TOOL") ||
+                type.contains("VIEW_FILE") ||
+                type.contains("COMMAND") ||
+                "AGENCY_TOOL_CALL".equals(type)
             ) {
                 toolsCalled++;
             }
@@ -171,6 +180,24 @@ public class GenerativeUiWidgetBuilder {
                 (!toolCalls.isArray() || toolCalls.isEmpty())
             ) {
                 modelResponses++;
+            }
+
+            String stepModel = step.path("model").asText("");
+            if (!stepModel.isBlank()) {
+                modelCounts.put(stepModel, modelCounts.getOrDefault(stepModel, 0) + 1);
+            }
+            if (step.has("input_tokens") || step.has("output_tokens")) {
+                hasNativeTokens = true;
+                long stepIn = step.path("input_tokens").asLong(0L);
+                long stepCache = step.path("cache_read_tokens").asLong(0L);
+                long stepOut = step.path("output_tokens").asLong(0L);
+                nativeInputTokens += stepIn;
+                nativeCacheReadTokens += stepCache;
+                nativeOutputTokens += stepOut;
+                double[] pricing = pricingForModel(stepModel);
+                nativeCost +=
+                    (stepIn * pricing[0] + stepCache * pricing[1] + stepOut * pricing[2]) /
+                    1_000_000.0;
             }
 
             // Token estimation (~4 chars/token heuristic)
@@ -204,12 +231,22 @@ public class GenerativeUiWidgetBuilder {
             );
         }
 
-        long totalTokens = inputTokens + thinkingTokens + outputTokens;
-        double estimatedCost =
-            (inputTokens * 0.75 + (outputTokens + thinkingTokens) * 3.75) / 1_000_000.0;
+        long displayInputTokens = hasNativeTokens ? nativeInputTokens : inputTokens;
+        long displayMiddleTokens = hasNativeTokens ? nativeCacheReadTokens : thinkingTokens;
+        long displayOutputTokens = hasNativeTokens ? nativeOutputTokens : outputTokens;
+        long totalTokens = displayInputTokens + displayMiddleTokens + displayOutputTokens;
+        double estimatedCost = hasNativeTokens
+            ? nativeCost
+            : (inputTokens * 1.50 + (outputTokens + thinkingTokens) * 7.50) / 1_000_000.0;
         String costStr = estimatedCost < 0.005
             ? "< $0.01"
             : String.format(Locale.US, "$%.3f", estimatedCost);
+        String primaryModel = modelCounts
+            .entrySet()
+            .stream()
+            .max(Map.Entry.comparingByValue())
+            .map(Map.Entry::getKey)
+            .orElse("gemini-4-hydrogen");
 
         long firstStart = sequences.isEmpty() ? 0L : sequences.getFirst().startMs();
         long lastEnd = sequences.isEmpty() ? 0L : sequences.getLast().endMs();
@@ -243,10 +280,12 @@ public class GenerativeUiWidgetBuilder {
             toolsCalled,
             modelResponses,
             errors,
-            inputTokens,
-            thinkingTokens,
-            outputTokens,
+            displayInputTokens,
+            displayMiddleTokens,
+            displayOutputTokens,
             totalTokens,
+            hasNativeTokens,
+            primaryModel,
             costStr,
             durationStr,
             totalWallMs,
@@ -268,9 +307,11 @@ public class GenerativeUiWidgetBuilder {
         int modelResponses,
         int errors,
         long inputTokens,
-        long thinkingTokens,
+        long middleTokens,
         long outputTokens,
         long totalTokens,
+        boolean hasNativeTokens,
+        String primaryModel,
         String costStr,
         String durationStr,
         long totalWallMs,
@@ -280,9 +321,7 @@ public class GenerativeUiWidgetBuilder {
         JsonNode analysisNode
     ) {
         double inPct = totalTokens > 0 ? Math.max(1.0, (inputTokens * 100.0) / totalTokens) : 33.3;
-        double thPct = totalTokens > 0
-            ? Math.max(1.0, (thinkingTokens * 100.0) / totalTokens)
-            : 33.3;
+        double thPct = totalTokens > 0 ? Math.max(1.0, (middleTokens * 100.0) / totalTokens) : 33.3;
         double outPct = totalTokens > 0
             ? Math.max(1.0, (outputTokens * 100.0) / totalTokens)
             : 33.4;
@@ -459,6 +498,16 @@ public class GenerativeUiWidgetBuilder {
             escapeHtml(projectName) +
             "</span>"
             : "";
+        String modelBadge =
+            "<span class=\"px-2 py-0.5 rounded text-xs font-mono bg-sky-500/15 text-sky-400 border border-sky-500/30\">" +
+            escapeHtml(primaryModel) +
+            "</span>";
+        String tokenCardTitle = hasNativeTokens ? "Total Tokens" : "Est. Tokens";
+        String tokenDistTitle = hasNativeTokens
+            ? "Token Distribution (Exact API Metrics)"
+            : "Token Distribution (Heuristic ~4 chars/tok)";
+        String inputLabel = hasNativeTokens ? "Uncached Input" : "Input";
+        String middleLabel = hasNativeTokens ? "Cache Read" : "Thinking";
 
         return """
             <!DOCTYPE html>
@@ -475,6 +524,7 @@ public class GenerativeUiWidgetBuilder {
                     <div class="flex items-center gap-2 flex-wrap">
                       <span class="text-sm font-semibold text-[var(--foreground)] truncate">%s</span>
                       <span class="font-mono text-xs px-1.5 py-0.5 rounded bg-[var(--secondary)] text-[var(--muted-foreground)]">%s</span>
+                      %s
                       %s
                     </div>
                     <div class="flex items-center gap-3 mt-1 text-xs text-[var(--muted-foreground)]">
@@ -519,7 +569,7 @@ public class GenerativeUiWidgetBuilder {
                       <div class="text-base font-bold text-sky-400 mt-0.5">%d</div>
                     </div>
                     <div class="p-2.5 rounded-lg bg-[var(--secondary)] border border-[var(--border)]">
-                      <div class="text-xs text-[var(--muted-foreground)]">Est. Tokens</div>
+                      <div class="text-xs text-[var(--muted-foreground)]">%s</div>
                       <div class="text-base font-bold text-emerald-400 mt-0.5">%s</div>
                     </div>
                   </div>
@@ -527,17 +577,17 @@ public class GenerativeUiWidgetBuilder {
                   <!-- Token Distribution Bar -->
                   <div class="p-3 rounded-lg bg-[var(--secondary)] border border-[var(--border)] space-y-2">
                     <div class="flex items-center justify-between text-xs">
-                      <span class="font-semibold text-[var(--foreground)]">Token Distribution (Heuristic ~4 chars/tok)</span>
+                      <span class="font-semibold text-[var(--foreground)]">%s</span>
                       <span class="text-[var(--muted-foreground)]">Total: <strong class="text-[var(--foreground)]">%s</strong></span>
                     </div>
                     <div class="h-3 w-full rounded-full overflow-hidden flex bg-[var(--background)]">
-                      <div style="width:%.1f%%" class="bg-sky-400 h-full" title="Input Tokens"></div>
-                      <div style="width:%.1f%%" class="bg-violet-400 h-full" title="Thinking Tokens"></div>
+                      <div style="width:%.1f%%" class="bg-sky-400 h-full" title="%s Tokens"></div>
+                      <div style="width:%.1f%%" class="bg-violet-400 h-full" title="%s Tokens"></div>
                       <div style="width:%.1f%%" class="bg-emerald-400 h-full" title="Output Tokens"></div>
                     </div>
                     <div class="flex items-center justify-between text-xs text-[var(--muted-foreground)] flex-wrap gap-2">
-                      <span class="flex items-center gap-1.5"><span class="w-2.5 h-2.5 rounded-full bg-sky-400 inline-block"></span>Input: <strong class="text-[var(--foreground)]">%s</strong> (%.0f%%)</span>
-                      <span class="flex items-center gap-1.5"><span class="w-2.5 h-2.5 rounded-full bg-violet-400 inline-block"></span>Thinking: <strong class="text-[var(--foreground)]">%s</strong> (%.0f%%)</span>
+                      <span class="flex items-center gap-1.5"><span class="w-2.5 h-2.5 rounded-full bg-sky-400 inline-block"></span>%s: <strong class="text-[var(--foreground)]">%s</strong> (%.0f%%)</span>
+                      <span class="flex items-center gap-1.5"><span class="w-2.5 h-2.5 rounded-full bg-violet-400 inline-block"></span>%s: <strong class="text-[var(--foreground)]">%s</strong> (%.0f%%)</span>
                       <span class="flex items-center gap-1.5"><span class="w-2.5 h-2.5 rounded-full bg-emerald-400 inline-block"></span>Output: <strong class="text-[var(--foreground)]">%s</strong> (%.0f%%)</span>
                     </div>
                   </div>
@@ -594,6 +644,7 @@ public class GenerativeUiWidgetBuilder {
                 escapeHtml(title),
                 escapeHtml(shortId),
                 projectBadge,
+                modelBadge,
                 escapeHtml(durationStr),
                 totalSteps,
                 sequences.size(),
@@ -603,14 +654,20 @@ public class GenerativeUiWidgetBuilder {
                 userQueries,
                 toolsCalled,
                 modelResponses,
+                tokenCardTitle,
                 formatTokens(totalTokens),
+                tokenDistTitle,
                 formatTokens(totalTokens),
                 inPct,
+                inputLabel,
                 thPct,
+                middleLabel,
                 outPct,
+                inputLabel,
                 formatTokens(inputTokens),
                 inPct,
-                formatTokens(thinkingTokens),
+                middleLabel,
+                formatTokens(middleTokens),
                 thPct,
                 formatTokens(outputTokens),
                 outPct,
@@ -620,6 +677,23 @@ public class GenerativeUiWidgetBuilder {
                 seqListHtml.toString(),
                 analysisHtml.toString()
             );
+    }
+
+    static double[] pricingForModel(String model) {
+        if (model == null || model.isBlank()) {
+            return new double[] { 1.50, 0.075, 7.50 };
+        }
+        String m = model.toLowerCase(Locale.ROOT);
+        if (m.contains("carbon") || m.contains("argon")) {
+            return new double[] { 4.00, 0.20, 20.00 };
+        }
+        if (m.contains("neon")) {
+            return new double[] { 3.00, 0.15, 15.00 };
+        }
+        if (m.contains("3.8-flash") || m.contains("flash-worker")) {
+            return new double[] { 0.75, 0.075, 3.75 };
+        }
+        return new double[] { 1.50, 0.075, 7.50 };
     }
 
     private static long parseIsoMillis(String ts) {

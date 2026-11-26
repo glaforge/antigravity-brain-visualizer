@@ -17,10 +17,16 @@ package io.github.glaforge.agybrainviz;
 
 import io.micronaut.core.type.Argument;
 import io.micronaut.http.HttpRequest;
+import io.micronaut.http.HttpStatus;
 import io.micronaut.http.client.HttpClient;
 import io.micronaut.http.client.annotation.Client;
+import io.micronaut.http.client.exceptions.HttpClientResponseException;
 import io.micronaut.test.extensions.junit5.annotation.MicronautTest;
 import jakarta.inject.Inject;
+import java.net.URLEncoder;
+import java.nio.charset.StandardCharsets;
+import java.nio.file.Path;
+import java.nio.file.Paths;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
@@ -138,20 +144,31 @@ class BrainControllerTest {
         );
 
         // Unrecognized or malicious flavor should safely fallback to antigravity-cli
-        java.nio.file.Path maliciousFlavorPath = BrainController.getBrainPath("../../etc");
+        Path maliciousFlavorPath = BrainController.getBrainPath("../../etc");
         Assertions.assertTrue(
-            maliciousFlavorPath.endsWith(
-                java.nio.file.Path.of(".gemini", "antigravity-cli", "brain")
-            )
+            maliciousFlavorPath.endsWith(Path.of(".gemini", "antigravity-cli", "brain"))
         );
     }
 
     @Test
     void testTranscriptPathTraversalEndpoint() {
+        HttpClientResponseException encodedEx = Assertions.assertThrows(
+            HttpClientResponseException.class,
+            () ->
+                client
+                    .toBlocking()
+                    .exchange(
+                        HttpRequest.GET(
+                            "/api/brain/conversations/..%2F..%2Fetc%2Fpasswd/transcript"
+                        )
+                    )
+        );
+        Assertions.assertEquals(HttpStatus.NOT_FOUND, encodedEx.getStatus());
+
         String transcript = client
             .toBlocking()
             .retrieve(
-                HttpRequest.GET("/api/brain/conversations/..%2F..%2Fetc%2Fpasswd/transcript"),
+                HttpRequest.GET("/api/brain/conversations/foo..bar/transcript"),
                 String.class
             );
         Assertions.assertEquals("[]", transcript);
@@ -159,10 +176,19 @@ class BrainControllerTest {
 
     @Test
     void testArtifactsPathTraversalEndpoint() {
+        HttpClientResponseException encodedEx = Assertions.assertThrows(
+            HttpClientResponseException.class,
+            () ->
+                client
+                    .toBlocking()
+                    .exchange(HttpRequest.GET("/api/brain/conversations/..%2F..%2Fetc/artifacts"))
+        );
+        Assertions.assertEquals(HttpStatus.NOT_FOUND, encodedEx.getStatus());
+
         List<Map<String, Object>> artifacts = client
             .toBlocking()
             .retrieve(
-                HttpRequest.GET("/api/brain/conversations/..%2F..%2Fetc/artifacts"),
+                HttpRequest.GET("/api/brain/conversations/foo..bar/artifacts"),
                 Argument.listOf(Argument.mapOf(String.class, Object.class))
             );
         Assertions.assertNotNull(artifacts);
@@ -171,10 +197,19 @@ class BrainControllerTest {
 
     @Test
     void testSnapshotsPathTraversalEndpoint() {
+        HttpClientResponseException encodedEx = Assertions.assertThrows(
+            HttpClientResponseException.class,
+            () ->
+                client
+                    .toBlocking()
+                    .exchange(HttpRequest.GET("/api/brain/conversations/..%2F..%2Fetc/snapshots"))
+        );
+        Assertions.assertEquals(HttpStatus.NOT_FOUND, encodedEx.getStatus());
+
         List<Map<String, Object>> snapshots = client
             .toBlocking()
             .retrieve(
-                HttpRequest.GET("/api/brain/conversations/..%2F..%2Fetc/snapshots"),
+                HttpRequest.GET("/api/brain/conversations/foo..bar/snapshots"),
                 Argument.listOf(Argument.mapOf(String.class, Object.class))
             );
         Assertions.assertNotNull(snapshots);
@@ -183,10 +218,19 @@ class BrainControllerTest {
 
     @Test
     void testMessagesPathTraversalEndpoint() {
+        HttpClientResponseException encodedEx = Assertions.assertThrows(
+            HttpClientResponseException.class,
+            () ->
+                client
+                    .toBlocking()
+                    .exchange(HttpRequest.GET("/api/brain/conversations/..%2F..%2Fetc/messages"))
+        );
+        Assertions.assertEquals(HttpStatus.NOT_FOUND, encodedEx.getStatus());
+
         List<Map<String, Object>> messages = client
             .toBlocking()
             .retrieve(
-                HttpRequest.GET("/api/brain/conversations/..%2F..%2Fetc/messages"),
+                HttpRequest.GET("/api/brain/conversations/foo..bar/messages"),
                 Argument.listOf(Argument.mapOf(String.class, Object.class))
             );
         Assertions.assertNotNull(messages);
@@ -195,31 +239,108 @@ class BrainControllerTest {
 
     @Test
     void testDiffPathTraversalEndpoint() {
-        io.micronaut.http.client.exceptions.HttpClientResponseException ex =
-            Assertions.assertThrows(
-                io.micronaut.http.client.exceptions.HttpClientResponseException.class,
-                () ->
-                    client
-                        .toBlocking()
-                        .exchange(
-                            HttpRequest.GET(
-                                "/api/brain/conversations/..%2F..%2Fetc/diff?commit=HEAD"
-                            )
-                        )
-            );
-        Assertions.assertEquals(io.micronaut.http.HttpStatus.BAD_REQUEST, ex.getStatus());
+        HttpClientResponseException encodedEx = Assertions.assertThrows(
+            HttpClientResponseException.class,
+            () ->
+                client
+                    .toBlocking()
+                    .exchange(
+                        HttpRequest.GET("/api/brain/conversations/..%2F..%2Fetc/diff?commit=HEAD")
+                    )
+        );
+        Assertions.assertEquals(HttpStatus.NOT_FOUND, encodedEx.getStatus());
+
+        HttpClientResponseException ex = Assertions.assertThrows(
+            HttpClientResponseException.class,
+            () ->
+                client
+                    .toBlocking()
+                    .exchange(HttpRequest.GET("/api/brain/conversations/foo..bar/diff?commit=HEAD"))
+        );
+        Assertions.assertEquals(HttpStatus.BAD_REQUEST, ex.getStatus());
     }
 
     @Test
     void testWidgetPathTraversalEndpoint() {
-        io.micronaut.http.client.exceptions.HttpClientResponseException ex =
-            Assertions.assertThrows(
-                io.micronaut.http.client.exceptions.HttpClientResponseException.class,
-                () ->
-                    client
-                        .toBlocking()
-                        .exchange(HttpRequest.GET("/api/brain/conversations/..%2F..%2Fetc/widget"))
+        HttpClientResponseException encodedEx = Assertions.assertThrows(
+            HttpClientResponseException.class,
+            () ->
+                client
+                    .toBlocking()
+                    .exchange(HttpRequest.GET("/api/brain/conversations/..%2F..%2Fetc/widget"))
+        );
+        Assertions.assertEquals(HttpStatus.NOT_FOUND, encodedEx.getStatus());
+
+        HttpClientResponseException ex = Assertions.assertThrows(
+            HttpClientResponseException.class,
+            () ->
+                client
+                    .toBlocking()
+                    .exchange(HttpRequest.GET("/api/brain/conversations/foo..bar/widget"))
+        );
+        Assertions.assertEquals(HttpStatus.BAD_REQUEST, ex.getStatus());
+    }
+
+    @Test
+    void testMediaEndpointSecurityAndMissingFile() {
+        String outsidePath = URLEncoder.encode("/etc/passwd", StandardCharsets.UTF_8);
+        HttpClientResponseException unauthEx = Assertions.assertThrows(
+            HttpClientResponseException.class,
+            () ->
+                client
+                    .toBlocking()
+                    .exchange(HttpRequest.GET("/api/brain/media?path=" + outsidePath))
+        );
+        Assertions.assertEquals(HttpStatus.UNAUTHORIZED, unauthEx.getStatus());
+
+        Path insideGeminiMissing = Paths.get(
+            System.getProperty("user.home"),
+            ".gemini",
+            "non-existent-media-12345.png"
+        );
+        String missingParam = URLEncoder.encode(
+            insideGeminiMissing.toAbsolutePath().toString(),
+            StandardCharsets.UTF_8
+        );
+        HttpClientResponseException notFoundEx = Assertions.assertThrows(
+            HttpClientResponseException.class,
+            () ->
+                client
+                    .toBlocking()
+                    .exchange(HttpRequest.GET("/api/brain/media?path=" + missingParam))
+        );
+        Assertions.assertEquals(HttpStatus.NOT_FOUND, notFoundEx.getStatus());
+    }
+
+    @Test
+    void testSwarmEndpointNonExistentAndTraversal() {
+        Map<String, Object> nonExistent = client
+            .toBlocking()
+            .retrieve(
+                HttpRequest.GET(
+                    "/api/brain/conversations/non-existent-id-12345/swarm?flavor=antigravity"
+                ),
+                Argument.mapOf(String.class, Object.class)
             );
-        Assertions.assertEquals(io.micronaut.http.HttpStatus.BAD_REQUEST, ex.getStatus());
+        Assertions.assertNotNull(nonExistent);
+        Assertions.assertEquals(Boolean.FALSE, nonExistent.get("hasSwarm"));
+
+        HttpClientResponseException encodedEx = Assertions.assertThrows(
+            HttpClientResponseException.class,
+            () ->
+                client
+                    .toBlocking()
+                    .exchange(HttpRequest.GET("/api/brain/conversations/..%2F..%2Fetc/swarm"))
+        );
+        Assertions.assertEquals(HttpStatus.NOT_FOUND, encodedEx.getStatus());
+
+        Map<String, Object> traversal = client
+            .toBlocking()
+            .retrieve(
+                HttpRequest.GET("/api/brain/conversations/foo..bar/swarm"),
+                Argument.mapOf(String.class, Object.class)
+            );
+        Assertions.assertNotNull(traversal);
+        Assertions.assertEquals(Boolean.FALSE, traversal.get("hasSwarm"));
     }
 }

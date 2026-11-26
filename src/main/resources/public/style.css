@@ -740,6 +740,7 @@ body {
 .badge.image { background: rgba(217, 119, 6, 0.14); color: #d97706; }
 .badge.question { background: rgba(234, 88, 12, 0.14); color: #ea580c; }
 .badge.mcp { background: rgba(147, 51, 234, 0.14); color: #9333ea; }
+.badge.checkpoint { background: rgba(245, 158, 11, 0.16); color: #d97706; }
 
 .step-meta.subagent { color: #db2777; }
 .step-meta.url { color: #0891b2; }
@@ -2480,4 +2481,106 @@ body {
 .conv-link-recipient:hover code {
     color: #bfdbfe !important;
 }
+
+.step-model-chip {
+    display: inline-flex;
+    align-items: center;
+    font-family: var(--font-mono);
+    font-size: 0.68rem;
+    font-weight: 500;
+    padding: 2px 7px;
+    border-radius: 5px;
+    background: rgba(56, 189, 248, 0.12);
+    color: #38bdf8;
+    border: 1px solid rgba(56, 189, 248, 0.25);
+}
+
+.step-tokens-chip {
+    display: inline-flex;
+    align-items: center;
+    font-family: var(--font-mono);
+    font-size: 0.68rem;
+    font-weight: 500;
+    padding: 2px 7px;
+    border-radius: 5px;
+    background: rgba(167, 139, 250, 0.1);
+    color: #a78bfa;
+    border: 1px solid rgba(167, 139, 250, 0.22);
+}
+
+.step-media-gallery {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 12px;
+    margin-top: 12px;
+}
+
+.step-media-card {
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+    padding: 8px;
+    background: var(--bg-elevated);
+    border: 1px solid var(--border-color);
+    border-radius: 8px;
+    text-decoration: none;
+    color: var(--text-secondary);
+    max-width: 340px;
+    transition: border-color 0.2s ease;
+}
+
+.step-media-card:hover {
+    border-color: var(--accent-blue);
+}
+
+.step-media-thumb {
+    max-width: 320px;
+    max-height: 220px;
+    border-radius: 6px;
+    object-fit: contain;
+    background: var(--bg-card);
+}
+
+.step-media-video {
+    max-width: 320px;
+    max-height: 220px;
+    border-radius: 6px;
+}
+
+.step-media-caption {
+    font-family: var(--font-mono);
+    font-size: 0.72rem;
+    color: var(--text-secondary);
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+.swarm-section-card {
+    background: var(--bg-card);
+    border: 1px solid var(--border-color);
+    border-radius: 10px;
+    padding: 16px;
+}
+
+.swarm-roster-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(260px, 1fr));
+    gap: 12px;
+}
+
+.swarm-member-card {
+    background: var(--bg-elevated);
+    border: 1px solid var(--border-color);
+    border-radius: 8px;
+    padding: 12px;
+}
+
+.swarm-board-post {
+    background: var(--bg-elevated);
+    border: 1px solid var(--border-color);
+    border-radius: 8px;
+    padding: 12px 14px;
+}
+
 

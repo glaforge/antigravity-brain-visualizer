@@ -17,6 +17,7 @@ package io.github.glaforge.agybrainviz;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
 import io.micronaut.http.HttpResponse;
+import io.micronaut.http.MediaType;
 import io.micronaut.http.annotation.Controller;
 import io.micronaut.http.annotation.Get;
 import io.micronaut.http.annotation.PathVariable;
@@ -26,13 +27,16 @@ import io.micronaut.scheduling.annotation.ExecuteOn;
 import java.io.BufferedReader;
 import java.io.IOException;
 import java.io.InputStreamReader;
+import java.net.URI;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.Paths;
 import java.util.ArrayList;
+import java.util.Comparator;
 import java.util.HashMap;
 import java.util.HashSet;
 import java.util.List;
+import java.util.Locale;
 import java.util.Map;
 import java.util.Optional;
 import java.util.Set;
@@ -290,7 +294,7 @@ public class BrainController {
         }
     }
 
-    private Path resolveTranscriptPath(Path convDir) {
+    public static Path resolveTranscriptPath(Path convDir) {
         Path full = convDir.resolve(".system_generated/logs/transcript_full.jsonl");
         if (Files.exists(full)) return full;
         Path regular = convDir.resolve(".system_generated/logs/transcript.jsonl");
@@ -383,6 +387,168 @@ public class BrainController {
         }
     }
 
+    private static final Set<String> ARTIFACT_IMAGE_EXTS = Set.of(
+        "png",
+        "jpg",
+        "jpeg",
+        "webp",
+        "gif",
+        "svg"
+    );
+    private static final Set<String> ARTIFACT_VIDEO_EXTS = Set.of("mp4", "webm");
+    private static final Set<String> ARTIFACT_AUDIO_EXTS = Set.of("wav", "mp3");
+
+    private static String fileExtension(String filename) {
+        int dot = filename.lastIndexOf('.');
+        if (dot < 0 || dot == filename.length() - 1) return "";
+        return filename.substring(dot + 1).toLowerCase(Locale.ROOT);
+    }
+
+    private static String classifyArtifactCategory(String ext) {
+        if ("md".equals(ext)) return "document";
+        if (ARTIFACT_IMAGE_EXTS.contains(ext)) return "image";
+        if (ARTIFACT_VIDEO_EXTS.contains(ext)) return "video";
+        if (ARTIFACT_AUDIO_EXTS.contains(ext)) return "audio";
+        if ("html".equals(ext) || "htm".equals(ext)) return "html";
+        if ("json".equals(ext)) return "data";
+        return "code";
+    }
+
+    private static boolean isSupportedRootArtifact(String filename) {
+        if (filename.endsWith(".metadata.json") || filename.startsWith(".")) return false;
+        String ext = fileExtension(filename);
+        return (
+            "md".equals(ext) ||
+            "html".equals(ext) ||
+            "htm".equals(ext) ||
+            "json".equals(ext) ||
+            ARTIFACT_IMAGE_EXTS.contains(ext) ||
+            ARTIFACT_VIDEO_EXTS.contains(ext) ||
+            ARTIFACT_AUDIO_EXTS.contains(ext)
+        );
+    }
+
+    private void collectArtifactsFromDir(
+        Path dir,
+        Path brainPath,
+        String source,
+        int maxFiles,
+        ObjectMapper mapper,
+        List<Map<String, Object>> out
+    ) {
+        if (!Files.isDirectory(dir)) return;
+        List<Path> collected = new ArrayList<>();
+        try (Stream<Path> files = Files.list(dir)) {
+            files
+                .filter(Files::isRegularFile)
+                .filter(p -> {
+                    String name = p.getFileName().toString();
+                    if ("root".equals(source)) {
+                        return isSupportedRootArtifact(name);
+                    }
+                    return !name.startsWith(".") && !name.endsWith(".metadata.json");
+                })
+                .forEach(collected::add);
+        } catch (IOException ignored) {
+            return;
+        }
+
+        collected.sort(
+            Comparator
+                .comparingLong((Path p) -> {
+                    try {
+                        return Files.getLastModifiedTime(p).toMillis();
+                    } catch (IOException e) {
+                        return 0L;
+                    }
+                })
+                .reversed()
+        );
+
+        int limit = Math.min(collected.size(), maxFiles);
+        for (int i = 0; i < limit; i++) {
+            Path p = collected.get(i);
+            String filename = p.getFileName().toString();
+            String ext = fileExtension(filename);
+            Map<String, Object> art = new HashMap<>();
+            art.put("filename", filename);
+            art.put("path", p.toAbsolutePath().toString());
+            art.put("category", classifyArtifactCategory(ext));
+            art.put("source", source);
+            try {
+                art.put("size", Files.size(p));
+                art.put("updatedAt", Files.getLastModifiedTime(p).toMillis());
+            } catch (IOException e) {
+                art.put("size", 0L);
+                art.put("updatedAt", 0L);
+            }
+
+            if ("root".equals(source) && "md".equals(ext)) {
+                Path metaPath = brainPath.resolve(filename + ".metadata.json");
+                if (!Files.exists(metaPath)) {
+                    String base = filename.substring(0, filename.lastIndexOf('.'));
+                    metaPath = brainPath.resolve(base + ".metadata.json");
+                }
+                if (Files.exists(metaPath)) {
+                    try {
+                        Map<String, Object> meta = mapper.readValue(
+                            Files.readString(metaPath),
+                            Map.class
+                        );
+                        art.put("metadata", meta);
+                    } catch (Exception ignored) {}
+                }
+            }
+            out.add(art);
+        }
+    }
+
+    @ExecuteOn(TaskExecutors.IO)
+    @Get("/media")
+    public HttpResponse<byte[]> getMediaContent(@QueryValue String path) {
+        try {
+            if (path == null || path.isBlank()) {
+                return HttpResponse.badRequest();
+            }
+            Path filePath;
+            if (path.startsWith("file://")) {
+                filePath = Paths.get(URI.create(path)).normalize();
+            } else {
+                filePath = Paths.get(path).normalize();
+            }
+            Path geminiDir = Paths.get(System.getProperty("user.home"), ".gemini").normalize();
+            if (!filePath.startsWith(geminiDir)) {
+                return HttpResponse.unauthorized();
+            }
+            if (!Files.exists(filePath) || Files.isDirectory(filePath)) {
+                return HttpResponse.notFound();
+            }
+            String ext = fileExtension(filePath.getFileName().toString());
+            MediaType mediaType =
+                switch (ext) {
+                    case "png" -> MediaType.IMAGE_PNG_TYPE;
+                    case "jpg", "jpeg" -> MediaType.IMAGE_JPEG_TYPE;
+                    case "gif" -> MediaType.IMAGE_GIF_TYPE;
+                    case "webp" -> MediaType.IMAGE_WEBP_TYPE;
+                    case "svg" -> MediaType.IMAGE_SVG_TYPE;
+                    case "mp4" -> MediaType.of("video/mp4");
+                    case "webm" -> MediaType.of("video/webm");
+                    case "wav" -> MediaType.of("audio/wav");
+                    case "mp3" -> MediaType.of("audio/mpeg");
+                    case "pdf" -> MediaType.APPLICATION_PDF_TYPE;
+                    default -> {
+                        String probed = Files.probeContentType(filePath);
+                        yield probed != null
+                            ? MediaType.of(probed)
+                            : MediaType.APPLICATION_OCTET_STREAM_TYPE;
+                    }
+                };
+            return HttpResponse.ok(Files.readAllBytes(filePath)).contentType(mediaType);
+        } catch (Exception e) {
+            return HttpResponse.serverError();
+        }
+    }
+
     @ExecuteOn(TaskExecutors.IO)
     @Get(value = "/conversations/{id}/artifacts", produces = "application/json")
     public List<Map<String, Object>> getArtifacts(
@@ -396,40 +562,23 @@ public class BrainController {
 
         List<Map<String, Object>> artifacts = new ArrayList<>();
         ObjectMapper mapper = new ObjectMapper();
-        try (Stream<Path> files = Files.list(brainPath)) {
-            files
-                .filter(p -> Files.isRegularFile(p) && p.getFileName().toString().endsWith(".md"))
-                .forEach(p -> {
-                    String filename = p.getFileName().toString();
-                    Map<String, Object> art = new HashMap<>();
-                    art.put("filename", filename);
-                    art.put("path", p.toAbsolutePath().toString());
-                    try {
-                        art.put("size", Files.size(p));
-                        art.put("updatedAt", Files.getLastModifiedTime(p).toMillis());
-                    } catch (IOException e) {
-                        art.put("size", 0L);
-                        art.put("updatedAt", 0L);
-                    }
-
-                    // Look for metadata file: <filename>.metadata.json or <filename_without_ext>.metadata.json
-                    Path metaPath = brainPath.resolve(filename + ".metadata.json");
-                    if (!Files.exists(metaPath)) {
-                        String base = filename.substring(0, filename.lastIndexOf('.'));
-                        metaPath = brainPath.resolve(base + ".metadata.json");
-                    }
-                    if (Files.exists(metaPath)) {
-                        try {
-                            Map<String, Object> meta = mapper.readValue(
-                                Files.readString(metaPath),
-                                Map.class
-                            );
-                            art.put("metadata", meta);
-                        } catch (Exception e) {}
-                    }
-                    artifacts.add(art);
-                });
-        } catch (IOException e) {}
+        collectArtifactsFromDir(brainPath, brainPath, "root", 200, mapper, artifacts);
+        collectArtifactsFromDir(
+            brainPath.resolve("scratch"),
+            brainPath,
+            "scratch",
+            50,
+            mapper,
+            artifacts
+        );
+        collectArtifactsFromDir(
+            brainPath.resolve(".user_uploaded"),
+            brainPath,
+            "uploaded",
+            50,
+            mapper,
+            artifacts
+        );
 
         artifacts.sort((a, b) -> Long.compare((Long) b.get("updatedAt"), (Long) a.get("updatedAt"))
         );
@@ -561,6 +710,78 @@ public class BrainController {
             return tsB.compareTo(tsA);
         });
         return messages;
+    }
+
+    @ExecuteOn(TaskExecutors.IO)
+    @Get(value = "/conversations/{id}/swarm", produces = "application/json")
+    public Map<String, Object> getSwarmData(
+        @PathVariable String id,
+        @QueryValue Optional<String> flavor
+    ) {
+        Optional<Path> convPathOpt = resolveConversationDir(id, flavor);
+        if (convPathOpt.isEmpty() || !Files.exists(convPathOpt.get())) {
+            return Map.of("hasSwarm", false, "subagents", List.of());
+        }
+        Path sysDir = convPathOpt.get().resolve(".system_generated");
+        Path swarmDir = sysDir.resolve("swarm");
+        Path subagentsDir = sysDir.resolve("subagents");
+
+        ObjectMapper mapper = new ObjectMapper();
+        Map<String, Object> result = new HashMap<>();
+        boolean hasSwarm = false;
+
+        if (Files.isDirectory(swarmDir)) {
+            for (String key : List.of("swarm", "members", "plan")) {
+                Path p = swarmDir.resolve(key + ".json");
+                if (Files.isRegularFile(p)) {
+                    try {
+                        result.put(key, mapper.readValue(Files.readString(p), Map.class));
+                        hasSwarm = true;
+                    } catch (Exception ignored) {}
+                }
+            }
+            Path boardPath = swarmDir.resolve("board.jsonl");
+            if (Files.isRegularFile(boardPath)) {
+                List<Map<String, Object>> board = new ArrayList<>();
+                try (Stream<String> lines = Files.lines(boardPath)) {
+                    lines
+                        .map(String::trim)
+                        .filter(l -> !l.isEmpty())
+                        .forEach(l -> {
+                            try {
+                                board.add(mapper.readValue(l, Map.class));
+                            } catch (Exception ignored) {}
+                        });
+                } catch (IOException ignored) {}
+                result.put("board", board);
+                hasSwarm = true;
+            }
+        }
+
+        List<Map<String, Object>> subagents = new ArrayList<>();
+        if (Files.isDirectory(subagentsDir)) {
+            try (Stream<Path> files = Files.list(subagentsDir)) {
+                files
+                    .filter(p ->
+                        Files.isRegularFile(p) && p.getFileName().toString().endsWith(".json")
+                    )
+                    .forEach(p -> {
+                        try {
+                            subagents.add(mapper.readValue(Files.readString(p), Map.class));
+                        } catch (Exception ignored) {}
+                    });
+            } catch (IOException ignored) {}
+            subagents.sort(
+                Comparator.comparingInt(m -> {
+                    Object idx = m.get("spawnStepIndex");
+                    return idx instanceof Number n ? n.intValue() : Integer.MAX_VALUE;
+                })
+            );
+        }
+
+        result.put("hasSwarm", hasSwarm);
+        result.put("subagents", subagents);
+        return result;
     }
 
     @ExecuteOn(TaskExecutors.IO)

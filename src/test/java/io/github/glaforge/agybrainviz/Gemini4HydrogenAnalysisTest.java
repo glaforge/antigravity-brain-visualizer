@@ -15,7 +15,8 @@
  */
 package io.github.glaforge.agybrainviz;
 
-import com.fasterxml.jackson.databind.ObjectMapper;
+import dev.langchain4j.data.message.SystemMessage;
+import dev.langchain4j.data.message.UserMessage;
 import dev.langchain4j.model.TokenCountEstimator;
 import dev.langchain4j.model.chat.ChatModel;
 import dev.langchain4j.model.chat.request.ChatRequest;
@@ -26,21 +27,19 @@ import dev.langchain4j.model.google.genai.GoogleGenAiTokenCountEstimator;
 import io.micronaut.context.annotation.Property;
 import io.micronaut.test.extensions.junit5.annotation.MicronautTest;
 import jakarta.inject.Inject;
-import java.io.File;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.Paths;
 import java.time.Duration;
-import java.util.List;
 import java.util.Optional;
 import org.junit.jupiter.api.Assertions;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.condition.EnabledIfEnvironmentVariable;
 
 @MicronautTest
-@Property(name = "gemini.model", value = "gemini-3.8-flash")
+@Property(name = "gemini.model", value = "gemini-4-hydrogen")
 @Property(name = "gemini.debug", value = "true")
-class Gemini38FlashAnalysisTest {
+class Gemini4HydrogenAnalysisTest {
 
     @Inject
     AnalyzerService analyzerService;
@@ -50,29 +49,29 @@ class Gemini38FlashAnalysisTest {
 
     @Test
     @EnabledIfEnvironmentVariable(named = "GEMINI_API_KEY", matches = ".+")
-    void testTokenEstimatorWithGemini38Flash() {
+    void testTokenEstimatorWithGemini4Hydrogen() {
         String apiKey = System.getenv("GEMINI_API_KEY");
         TokenCountEstimator estimator = GoogleGenAiTokenCountEstimator
             .builder()
             .apiKey(apiKey)
-            .modelName("gemini-3.8-flash")
+            .modelName("gemini-4-hydrogen")
             .build();
 
         int tokens = estimator.estimateTokenCountInText(
             "This is a test prompt for token estimation."
         );
-        System.out.println("Estimated tokens with gemini-3.8-flash: " + tokens);
+        System.out.println("Estimated tokens with gemini-4-hydrogen: " + tokens);
         Assertions.assertTrue(tokens > 0);
     }
 
     @Test
     @EnabledIfEnvironmentVariable(named = "GEMINI_API_KEY", matches = ".+")
-    void testDirectGoogleGenAiChatModelWithGemini38Flash() {
+    void testDirectGoogleGenAiChatModelWithGemini4Hydrogen() {
         String apiKey = System.getenv("GEMINI_API_KEY");
         ChatModel model = GoogleGenAiChatModel
             .builder()
             .apiKey(apiKey)
-            .modelName("gemini-3.8-flash")
+            .modelName("gemini-4-hydrogen")
             .temperature(0.0)
             .maxRetries(1)
             .timeout(Duration.ofMinutes(1))
@@ -83,12 +82,10 @@ class Gemini38FlashAnalysisTest {
             ChatRequest
                 .builder()
                 .messages(
-                    dev.langchain4j.data.message.SystemMessage.from(
+                    SystemMessage.from(
                         "You are a helpful assistant. Output JSON with a 'message' field."
                     ),
-                    dev.langchain4j.data.message.UserMessage.from(
-                        "Respond with a test message in JSON format."
-                    )
+                    UserMessage.from("Respond with a test message in JSON format.")
                 )
                 .build()
         );
@@ -96,13 +93,13 @@ class Gemini38FlashAnalysisTest {
         Assertions.assertNotNull(response);
         Assertions.assertNotNull(response.aiMessage());
         String text = response.aiMessage().text();
-        System.out.println("Direct JSON response from gemini-3.8-flash: " + text);
+        System.out.println("Direct JSON response from gemini-4-hydrogen: " + text);
         Assertions.assertTrue(text.contains("message"));
     }
 
     @Test
     @EnabledIfEnvironmentVariable(named = "GEMINI_API_KEY", matches = ".+")
-    void testAnalyzerServiceWithGemini38Flash() {
+    void testAnalyzerServiceWithGemini4Hydrogen() {
         String sampleTranscript = """
             USER REQUEST: The start game button doesn't do anything. Investigate and fix.
             AGENT ACTION: [find_by_name] Listing files in workspace -> /Users/glaforge/Projects/robotgame
@@ -144,7 +141,7 @@ class Gemini38FlashAnalysisTest {
 
     @Test
     @EnabledIfEnvironmentVariable(named = "GEMINI_API_KEY", matches = ".+")
-    void testEnrichedAnalysisWithGemini38Flash() {
+    void testEnrichedAnalysisWithGemini4Hydrogen() {
         String enrichedTranscript = """
             USER REQUEST: Does Jinfer use GPU at all?
             AGENT ACTION: [view_file] Inspect jam_metal.mm -> /Users/glaforge/Projects/qxotic/jam/jam-native/src/jam_metal.mm
@@ -168,7 +165,6 @@ class Gemini38FlashAnalysisTest {
 
         System.out.println("Enriched Title: " + analysis.shortTitle());
         System.out.println("Enriched Summary: " + analysis.summary());
-        // Verify that the assistant response about Metal/GPU or hybrid architecture was incorporated
         String lowerSummary = analysis.summary().toLowerCase();
         Assertions.assertTrue(
             lowerSummary.contains("gpu") ||

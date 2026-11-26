@@ -12,7 +12,7 @@ This visualizer parses those raw brain directories and renders them in a scannab
 ## How it works
 The visualizer automatically scans your local filesystem for agent session brains across supported Antigravity flavors (`antigravity-cli`, `antigravity-ide`, `jetski`). When you select a conversation session from the sidebar, the application parses the JSONL steps and organizes the execution flow into interactive sequences, artifact collections, snapshot Git histories, and subagent communications. 
 
-Additionally, it leverages Google's Gemini LLMs (`gemini-3.8-flash`) to automatically generate comprehensive executive summaries of long conversations—distilling thousands of lines of transcript into the core user intent, execution flow, tool actions, detected issues, recommendations, and the final outcome of the session.
+Additionally, it leverages Google's Gemini LLMs (`gemini-4-hydrogen`) to automatically generate comprehensive executive summaries of long conversations—distilling thousands of lines of transcript into the core user intent, execution flow, tool actions, detected issues, recommendations, and the final outcome of the session.
 
 > [!NOTE]
 > **Filesystem Modifications:** When you generate an AI summary for a session, the visualizer caches the result by creating a `summary.json` file and a `short_title.txt` file directly inside that specific agent's `.gemini/brain` directory. This prevents redundant LLM calls and speeds up future loads.
@@ -28,18 +28,16 @@ Additionally, it leverages Google's Gemini LLMs (`gemini-3.8-flash`) to automati
 *   **Adjustable Layout**: The sidebar features a drag handle to resize its width, a toggle button, and a global keyboard shortcut (`Cmd+B` / `Ctrl+B`) to collapse or expand it.
 
 **Token & Cost Estimation**
-*   **Heuristic Token Estimation**: Since Antigravity brain transcripts do not record native token counters, the visualizer calculates estimated token consumption using standard LLM character heuristics (~4 characters per token for text, JSON, and code) partitioned into:
-    *   **Input Tokens**: User queries, system prompt contexts, and tool execution outputs.
-    *   **Thinking Tokens**: Internal Gemini reasoning chains captured in `step.thinking`.
-    *   **Output Tokens**: Model responses (`PLANNER_RESPONSE`, `MESSAGE`) and serialized tool call arguments.
-*   **Interactive Token Breakdown**: An expandable distribution chart in the stats panel displaying the proportional split between Input (cyan), Thinking (purple), and Output (green) tokens.
-*   **Estimated Financial Cost**: Projects overall session costs based on Gemini 3.8 Flash pricing tiers ($0.75 / 1M input tokens, $3.75 / 1M output & thinking tokens).
-*   **Single-Pass Analysis Architecture**: In `AnalysisController`, leverages Gemini 3.8 Flash's native 1,000,000-token context window to analyze complete multi-turn sessions in a single high-fidelity pass without lossy chunk slicing or Map-Reduce consolidation.
+*   **Native API Token Metrics & Heuristic Fallback**: Modern Antigravity transcripts record exact `input_tokens`, `cache_read_tokens`, `output_tokens`, and `model` identifiers per step. The visualizer aggregates these exact counts with model-aware pricing and 95% cache-read discounts (supporting Gemini 4 Hydrogen, Neon, Carbon, Argon, and Gemini 3.8 Flash). For legacy transcripts without native counters, it falls back to standard character heuristics (~4 characters per token) partitioned into Input, Thinking, and Output tokens.
+*   **Interactive Token Breakdown**: An expandable distribution chart in the stats panel displaying the proportional split between Uncached Input (cyan), Cache Read / Thinking (purple), and Output (green) tokens, along with cache hit rate and per-model usage badges.
+*   **Estimated Financial Cost**: Projects overall session costs based on the models used in the transcript (falling back to Gemini 4 Hydrogen pricing: $1.50 / 1M input tokens, $0.075 / 1M cache read tokens, $7.50 / 1M output & thinking tokens).
+*   **Single-Pass Analysis Architecture**: In `AnalysisController`, leverages Gemini 4 Hydrogen's native 1,000,000-token context window to analyze complete multi-turn sessions in a single high-fidelity pass without lossy chunk slicing or Map-Reduce consolidation.
 
 **Tabbed Session Inspection**
-*   **📜 Transcript Tab**: The full chronological sequence of user requests, model reasoning, tool invocations, and system actions.
-*   **📦 Artifacts & Snapshots Tab**: Dedicated explorer for agent-generated Markdown artifacts (with metadata chips for summary, user feedback requests, and visibility) alongside a full Git commit history of workspace snapshots taken during the session.
+*   **📜 Transcript Tab**: The full chronological sequence of user requests, model reasoning (`thinking`), tool invocations (`GENERIC`, `AGENCY_TOOL_CALL`), compaction `CHECKPOINT` steps, inline step `media` galleries (screenshots, videos, audio), per-step model/token pills, and system actions.
+*   **📦 Artifacts & Snapshots Tab**: Dedicated explorer for agent-generated Markdown artifacts, rich media (`.png`, `.jpg`, `.svg`, `.mp4`, `.wav`), `.html`, `.json`, `scratch/`, and `.user_uploaded/` files (with metadata chips for summary, user feedback requests, and visibility) alongside a full Git commit history of workspace snapshots taken during the session.
 *   **💬 Subagent Messages Tab**: Dedicated panel displaying inter-agent messaging and delegation payloads (`send_message`), showing sender, recipient, and formatted conversation context.
+*   **🐝 Swarm & Agents Tab**: Automatically surfaces multi-agent Swarm sessions (`.system_generated/swarm/`) and spawned subagent descriptors (`.system_generated/subagents/`), displaying the swarm plan, member roster with model/state badges, clickable subagent conversation links, and the chronological Swarm message board.
 
 **Integrated Snapshot Diff Viewer**
 *   **Git Diff Inspection**: Inspect exact file changes, line additions, and deletions captured in agent snapshot commits.
@@ -61,7 +59,7 @@ Additionally, it leverages Google's Gemini LLMs (`gemini-3.8-flash`) to automati
 *   **In-Transcript Search**: A find-in-page text search utility to navigate through text matches within the active transcript.
 
 **AI Summarization & Interactive Assistant**
-*   **Gemini 3.8 Flash Integration**: Powered by Google's `gemini-3.8-flash` via LangChain4j for fast, high-quality session analysis with strict schema enforcement via Jackson.
+*   **Gemini 4 Hydrogen Integration**: Powered by Google's `gemini-4-hydrogen` via LangChain4j for fast, high-quality session analysis with strict schema enforcement via Jackson.
 *   **Session Summaries**: Analyzes enriched session transcripts in a single pass to produce executive summaries, chronological conversation flows, agent action breakdowns, issues encountered with circumventions, and actionable recommendations.
 *   **Interactive Session Assistant**: A sliding right drawer (`Cmd+K` / `Ctrl+K`) to chat with an AI assistant about the active session, specific step failures, or sequence execution details.
 *   **Contextual Triggers & Scope Chips**: Click `💬 Ask Chat` on sequence headers, error step cards, or the summary section to automatically pin focused context chips (`📍 Context: Sequence #3`).
@@ -77,7 +75,7 @@ Additionally, it leverages Google's Gemini LLMs (`gemini-3.8-flash`) to automati
 This project prioritizes a lightweight, high-performance, and maintainable architecture:
 
 - **Backend**: Built with [Micronaut](https://micronaut.io/) (Java). It serves the frontend static assets and provides native REST APIs to securely read and parse local filesystem transcripts, Git snapshot repos, and artifact files.
-- **AI Integration**: Powered by [LangChain4j](https://github.com/langchain4j/langchain4j) connecting directly to [Google Gemini models](https://docs.langchain4j.dev/integrations/language-models/google-genai/) (`gemini-3.8-flash`). It uses single-pass enriched context analysis for session summarization, alongside contextual session Q&A and skill generation.
+- **AI Integration**: Powered by [LangChain4j](https://github.com/langchain4j/langchain4j) connecting directly to [Google Gemini models](https://docs.langchain4j.dev/integrations/language-models/google-genai/) (`gemini-4-hydrogen`). It uses single-pass enriched context analysis for session summarization, alongside contextual session Q&A and skill generation.
 - **Diff Viewer**: Integrated with [diff2html](https://diff2html.xyz/) custom-styled with dark-mode overrides, synchronized sticky gutters, and split/unified toggling.
 - **Frontend**: A zero-build Vanilla JavaScript, HTML, and CSS single-page application. It avoids heavy framework overhead, relying instead on standard browser DOM APIs, customized CSS grid/flexbox layouts, and minimal dependencies (`marked.js` and `highlight.js`) for Markdown rendering and code syntax highlighting.
 
@@ -135,7 +133,7 @@ The visualizer can be configured using environment variables, system properties,
 |---|---|---|---|---|
 | **API Key** | `GEMINI_API_KEY` | `-Dgemini.api.key` | *None (Required)* | Your Google Gemini API key. |
 | **Server Port** | `MICRONAUT_SERVER_PORT` | `-Dmicronaut.server.port` / `--micronaut.server.port` | `8080` | HTTP port for the web interface. |
-| **Gemini Model** | `GEMINI_MODEL` | `-Dgemini.model` / `--gemini.model` | `gemini-3.8-flash` | Gemini model used for session analysis & chat assistant. |
+| **Gemini Model** | `GEMINI_MODEL` | `-Dgemini.model` / `--gemini.model` | `gemini-4-hydrogen` | Gemini model used for session analysis & chat assistant. |
 | **Verbose Debug Logging** | `GEMINI_DEBUG` / `GEMINI_VERBOSE` | `-Dgemini.debug` / `--gemini.debug` | `false` | Enable detailed LLM request & response prompt logging. |
 
 ### Configuration Examples
@@ -144,19 +142,19 @@ The visualizer can be configured using environment variables, system properties,
 ```bash
 export GEMINI_API_KEY="your-api-key-here"
 export MICRONAUT_SERVER_PORT=9090
-export GEMINI_MODEL="gemini-3.8-flash"
+export GEMINI_MODEL="gemini-4-hydrogen"
 ./gradlew run
 ```
 
 **Via Native Executable or System Properties:**
 ```bash
 export GEMINI_API_KEY="your-api-key-here"
-./agy-brain-viz -Dmicronaut.server.port=9090 -Dgemini.model=gemini-3.8-flash
+./agy-brain-viz -Dmicronaut.server.port=9090 -Dgemini.model=gemini-4-hydrogen
 ```
 
 **Via Command-Line Arguments:**
 ```bash
-./agy-brain-viz --micronaut.server.port=9090 --gemini.model=gemini-3.8-flash
+./agy-brain-viz --micronaut.server.port=9090 --gemini.model=gemini-4-hydrogen
 ```
 
 ## Building a Native Executable

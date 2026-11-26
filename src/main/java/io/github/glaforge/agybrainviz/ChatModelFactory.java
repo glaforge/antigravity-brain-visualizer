@@ -42,7 +42,7 @@ public class ChatModelFactory {
     private static final Logger LOG = LoggerFactory.getLogger(ChatModelFactory.class);
     private static final String REPRODUCER_LOG_FILE = "gemini-reproducers.log";
 
-    @Value("${gemini.model:gemini-3.8-flash}")
+    @Value("${gemini.model:gemini-4-hydrogen}")
     protected String modelName;
 
     @Value("${gemini.debug:false}")
@@ -66,7 +66,7 @@ public class ChatModelFactory {
         String env = System.getenv("GEMINI_MODEL");
         if (env != null && !env.isBlank()) return env.trim();
         if (configured != null && !configured.isBlank()) return configured.trim();
-        return "gemini-3.8-flash";
+        return "gemini-4-hydrogen";
     }
 
     public static boolean resolveDebug(Boolean configured) {

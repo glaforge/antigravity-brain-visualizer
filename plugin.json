@@ -1,7 +1,7 @@
 {
   "name": "agy-brain-viz",
   "displayName": "Antigravity Brain Visualizer",
-  "version": "0.1.0",
+  "version": "0.8.0",
   "description": "Interactive conversation brain visualizer, token and cost analyzer, git snapshot diff viewer, and Gemini session assistant for Antigravity.",
   "logo": "assets/logo.svg",
   "suggestedPrompts": [

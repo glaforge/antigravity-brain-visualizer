@@ -20,6 +20,31 @@ import {
   formatTime,
 } from "./utils.js";
 
+function getModelPricing(modelName) {
+  if (!modelName) {
+    return { input: 1.5, cacheRead: 0.075, output: 7.5 };
+  }
+  const m = modelName.toLowerCase();
+  if (m.includes("carbon") || m.includes("argon")) {
+    return { input: 4.0, cacheRead: 0.2, output: 20.0 };
+  }
+  if (m.includes("neon")) {
+    return { input: 3.0, cacheRead: 0.15, output: 15.0 };
+  }
+  if (m.includes("3.8-flash") || m.includes("flash-worker")) {
+    return { input: 0.75, cacheRead: 0.075, output: 3.75 };
+  }
+  return { input: 1.5, cacheRead: 0.075, output: 7.5 };
+}
+
+function formatModelShortName(modelName) {
+  if (!modelName) return "4 Hydrogen";
+  return modelName
+    .replace(/^gemini-/i, "")
+    .replace(/-/g, " ")
+    .replace(/\b\w/g, (c) => c.toUpperCase());
+}
+
 export function renderStats(steps) {
   const container = document.getElementById("session-stats-container");
   if (!container) return;
@@ -39,10 +64,16 @@ export function renderStats(steps) {
   let segments = [];
   let currentSegment = null;
 
-  // Token estimation (Gemini 3.8 Flash heuristic ~4 chars per token)
+  // Token estimation (Gemini 4 Hydrogen heuristic ~4 chars per token fallback)
   let inputTokens = 0;
   let thinkingTokens = 0;
   let outputTokens = 0;
+  let hasNativeTokens = false;
+  let nativeInputTokens = 0;
+  let nativeCacheReadTokens = 0;
+  let nativeOutputTokens = 0;
+  let nativeCost = 0;
+  let modelStepCounts = {};
   const sortedSteps = [...steps]
     .filter((s) => s.created_at)
     .sort(
@@ -91,7 +122,8 @@ export function renderStats(steps) {
       step.type &&
       (step.type.includes("TOOL") ||
         step.type.includes("VIEW_FILE") ||
-        step.type.includes("COMMAND"))
+        step.type.includes("COMMAND") ||
+        step.type === "AGENCY_TOOL_CALL")
     ) {
       toolsCalled++;
     }
@@ -140,6 +172,27 @@ export function renderStats(steps) {
       }
 
       errorFrequencies[errMsg] = (errorFrequencies[errMsg] || 0) + 1;
+    }
+
+    if (step.model) {
+      modelStepCounts[step.model] = (modelStepCounts[step.model] || 0) + 1;
+    }
+
+    if (
+      typeof step.input_tokens === "number" ||
+      typeof step.output_tokens === "number"
+    ) {
+      hasNativeTokens = true;
+      const stepIn = step.input_tokens || 0;
+      const stepCache = step.cache_read_tokens || 0;
+      const stepOut = step.output_tokens || 0;
+      nativeInputTokens += stepIn;
+      nativeCacheReadTokens += stepCache;
+      nativeOutputTokens += stepOut;
+      const p = getModelPricing(step.model);
+      nativeCost +=
+        (stepIn * p.input + stepCache * p.cacheRead + stepOut * p.output) /
+        1000000;
     }
 
     // Token estimation accumulation (Gemini ~4 chars/token heuristic)
@@ -330,10 +383,19 @@ export function renderStats(steps) {
   }
   errorsChartHtml += "</div>";
 
-  const totalTokens = inputTokens + thinkingTokens + outputTokens;
-  // Gemini 3.8 Flash Pricing: $0.75 / 1M input tokens, $3.75 / 1M output tokens (including thinking)
-  const estimatedCost =
-    (inputTokens * 0.75 + (outputTokens + thinkingTokens) * 3.75) / 1000000;
+  const displayInputTokens = hasNativeTokens ? nativeInputTokens : inputTokens;
+  const displayMiddleTokens = hasNativeTokens
+    ? nativeCacheReadTokens
+    : thinkingTokens;
+  const displayOutputTokens = hasNativeTokens
+    ? nativeOutputTokens
+    : outputTokens;
+  const totalTokens =
+    displayInputTokens + displayMiddleTokens + displayOutputTokens;
+  // Gemini 4 Hydrogen Pricing fallback: $1.50 / 1M input tokens, $7.50 / 1M output tokens (including thinking)
+  const estimatedCost = hasNativeTokens
+    ? nativeCost
+    : (inputTokens * 1.5 + (outputTokens + thinkingTokens) * 7.5) / 1000000;
   const formatTokens = (t) => {
     if (t >= 1000000) return (t / 1000000).toFixed(2) + "M";
     if (t >= 1000) return (t / 1000).toFixed(1) + "k";
@@ -342,55 +404,94 @@ export function renderStats(steps) {
   const costStr =
     estimatedCost < 0.005 ? "< $0.01" : `$${estimatedCost.toFixed(3)}`;
 
+  const sortedModels = Object.entries(modelStepCounts).sort(
+    (a, b) => b[1] - a[1]
+  );
+  const primaryModelLabel =
+    sortedModels.length > 0
+      ? formatModelShortName(sortedModels[0][0])
+      : "4 Hydrogen";
+  const cacheHitDenom = nativeInputTokens + nativeCacheReadTokens;
+  const cacheHitPct =
+    hasNativeTokens && cacheHitDenom > 0
+      ? Math.round((nativeCacheReadTokens / cacheHitDenom) * 100)
+      : 0;
+
+  const tokensChartTitle = hasNativeTokens
+    ? `Exact Token Consumption (${escapeHtml(primaryModelLabel)})`
+    : "Estimated Token Consumption (Gemini 4 Hydrogen)";
+  const tokensCostNote = hasNativeTokens
+    ? `Est. Cost: <strong style="color:#10b981;">${costStr}</strong> (${cacheHitPct}% cache hit)`
+    : `Est. Cost: <strong style="color:#10b981;">${costStr}</strong> ($1.50 / $7.50 per 1M)`;
+  const inputLabel = hasNativeTokens ? "Uncached Input" : "Input";
+  const middleLabel = hasNativeTokens ? "Cache Read" : "Thinking";
+
+  let modelChipsHtml = "";
+  if (sortedModels.length > 0) {
+    modelChipsHtml = `<div style="display:flex; gap:8px; flex-wrap:wrap; margin-top:12px; padding-top:10px; border-top:1px solid var(--border-color); font-size:0.78rem; color:var(--text-secondary);">
+      <span style="font-weight:600; color:var(--text-primary);">Models:</span>
+      ${sortedModels
+        .map(
+          ([m, count]) =>
+            `<span class="step-model-chip">${escapeHtml(m)} (${count})</span>`
+        )
+        .join("")}
+    </div>`;
+  }
+
   let tokensChartHtml =
     '<div class="tools-chart" id="tokens-chart" style="display: none; margin-top: 24px; padding-top: 16px; border-top: 1px solid var(--border-color);">';
   tokensChartHtml +=
-    '<div style="display:flex; justify-content:space-between; align-items:center; margin-bottom: 16px;">' +
-    '<div style="font-size: 0.75rem; font-weight: 700; color: #38bdf8; letter-spacing: 0.05em; text-transform: uppercase;">Estimated Token Consumption (Gemini 3.8 Flash)</div>' +
-    `<div style="font-size: 0.8rem; color: var(--text-secondary);">Est. Cost: <strong style="color:#10b981;">${costStr}</strong> ($0.75 / $3.75 per 1M)</div>` +
+    '<div style="display:flex; justify-content:space-between; align-items:center; margin-bottom: 16px; gap: 12px; flex-wrap: wrap;">' +
+    `<div style="font-size: 0.75rem; font-weight: 700; color: #38bdf8; letter-spacing: 0.05em; text-transform: uppercase;">${tokensChartTitle}</div>` +
+    `<div style="font-size: 0.8rem; color: var(--text-secondary);">${tokensCostNote}</div>` +
     "</div>";
 
   if (totalTokens === 0) {
     tokensChartHtml += '<div class="stat-sub">No tokens recorded</div>';
   } else {
-    const inputPct = Math.max((inputTokens / totalTokens) * 100, 1).toFixed(1);
-    const thinkingPct = Math.max(
-      (thinkingTokens / totalTokens) * 100,
+    const inputPct = Math.max(
+      (displayInputTokens / totalTokens) * 100,
       1
     ).toFixed(1);
-    const outputPct = Math.max((outputTokens / totalTokens) * 100, 1).toFixed(
+    const middlePct = Math.max(
+      (displayMiddleTokens / totalTokens) * 100,
       1
-    );
+    ).toFixed(1);
+    const outputPct = Math.max(
+      (displayOutputTokens / totalTokens) * 100,
+      1
+    ).toFixed(1);
 
     tokensChartHtml += `
       <div style="height: 14px; width: 100%; display: flex; border-radius: 6px; overflow: hidden; background: var(--bg-elevated); margin-bottom: 14px; border: 1px solid var(--border-color);">
-        <div style="width: ${inputPct}%; background: #38bdf8;" title="Input: ${formatTokens(
-      inputTokens
+        <div style="width: ${inputPct}%; background: #38bdf8;" title="${inputLabel}: ${formatTokens(
+      displayInputTokens
     )} (${inputPct}%)"></div>
-        <div style="width: ${thinkingPct}%; background: #a78bfa;" title="Thinking: ${formatTokens(
-      thinkingTokens
-    )} (${thinkingPct}%)"></div>
+        <div style="width: ${middlePct}%; background: #a78bfa;" title="${middleLabel}: ${formatTokens(
+      displayMiddleTokens
+    )} (${middlePct}%)"></div>
         <div style="width: ${outputPct}%; background: #34d399;" title="Output: ${formatTokens(
-      outputTokens
+      displayOutputTokens
     )} (${outputPct}%)"></div>
       </div>
       <div style="display: flex; gap: 24px; flex-wrap: wrap; font-size: 0.85rem; color: var(--text-secondary);">
         <div style="display: flex; align-items: center; gap: 8px;">
           <span style="width: 10px; height: 10px; border-radius: 50%; background: #38bdf8; display: inline-block;"></span>
-          <span>Input: <strong style="color:var(--text-primary);">${formatTokens(
-            inputTokens
-          )}</strong> (${inputPct}%)</span>
+          <span>${inputLabel}: <strong style="color:var(--text-primary);">${formatTokens(
+      displayInputTokens
+    )}</strong> (${inputPct}%)</span>
         </div>
         <div style="display: flex; align-items: center; gap: 8px;">
           <span style="width: 10px; height: 10px; border-radius: 50%; background: #a78bfa; display: inline-block;"></span>
-          <span>Thinking: <strong style="color:var(--text-primary);">${formatTokens(
-            thinkingTokens
-          )}</strong> (${thinkingPct}%)</span>
+          <span>${middleLabel}: <strong style="color:var(--text-primary);">${formatTokens(
+      displayMiddleTokens
+    )}</strong> (${middlePct}%)</span>
         </div>
         <div style="display: flex; align-items: center; gap: 8px;">
           <span style="width: 10px; height: 10px; border-radius: 50%; background: #34d399; display: inline-block;"></span>
           <span>Output: <strong style="color:var(--text-primary);">${formatTokens(
-            outputTokens
+            displayOutputTokens
           )}</strong> (${outputPct}%)</span>
         </div>
         <div style="display: flex; align-items: center; gap: 8px; margin-left: auto;">
@@ -399,6 +500,7 @@ export function renderStats(steps) {
           )}</strong> tokens</span>
         </div>
       </div>
+      ${modelChipsHtml}
     `;
   }
   tokensChartHtml += "</div>";
@@ -457,13 +559,15 @@ export function renderStats(steps) {
             </div>
             <div class="stat-card" id="tokens-stat-card" style="cursor: pointer;">
                 <div class="stat-label" style="display:flex; justify-content:space-between; align-items:center;">
-                    EST. TOKENS
+                    ${hasNativeTokens ? "TOKENS" : "EST. TOKENS"}
                     <span id="tokens-chevron" class="chevron">›</span>
                 </div>
                 <div class="stat-value" style="color: #38bdf8;">${formatTokens(
                   totalTokens
                 )}</div>
-                <div class="stat-sub">~${costStr} · 3.8 Flash</div>
+                <div class="stat-sub">~${costStr} · ${escapeHtml(
+    primaryModelLabel
+  )}</div>
             </div>
         </div>
         ${toolsChartHtml}

@@ -21,6 +21,7 @@ import { initUI } from "./modules/ui.js";
 import { initChat, openDrawer, clearHistory } from "./modules/chat.js";
 import { renderArtifactsView } from "./modules/artifacts.js";
 import { renderMessagesView } from "./modules/messages.js";
+import { renderSwarmView } from "./modules/swarm.js";
 
 let allConversations = [];
 let sortDescending = true;
@@ -54,19 +55,21 @@ async function bootstrapApp() {
   const transcriptBtn = document.getElementById("tab-transcript-btn");
   const artifactsBtn = document.getElementById("tab-artifacts-btn");
   const messagesBtn = document.getElementById("tab-messages-btn");
+  const swarmBtn = document.getElementById("tab-swarm-btn");
 
   const transcriptView = document.getElementById("transcript-container");
   const timelineTrack = document.getElementById("timeline-track");
   const artifactsView = document.getElementById("artifacts-container");
   const messagesView = document.getElementById("messages-container");
+  const swarmView = document.getElementById("swarm-container");
 
   function switchView(activeBtn, viewToShow) {
-    [transcriptBtn, artifactsBtn, messagesBtn].forEach((btn) => {
+    [transcriptBtn, artifactsBtn, messagesBtn, swarmBtn].forEach((btn) => {
       if (btn) btn.classList.remove("active");
     });
     if (activeBtn) activeBtn.classList.add("active");
 
-    [transcriptView, artifactsView, messagesView].forEach((view) => {
+    [transcriptView, artifactsView, messagesView, swarmView].forEach((view) => {
       if (view) view.classList.add("hidden");
     });
     if (timelineTrack) {
@@ -101,6 +104,19 @@ async function bootstrapApp() {
       if (state.currentConversationId) {
         renderMessagesView(
           messagesView,
+          state.currentConversationId,
+          state.currentFlavor
+        );
+      }
+    });
+  }
+
+  if (swarmBtn) {
+    swarmBtn.addEventListener("click", () => {
+      switchView(swarmBtn, swarmView);
+      if (state.currentConversationId) {
+        renderSwarmView(
+          swarmView,
           state.currentConversationId,
           state.currentFlavor
         );
@@ -1061,7 +1077,35 @@ async function selectConversation(id, element) {
       })
       .catch(() => {});
 
-    // If currently on artifacts or messages tab, render immediately
+    fetch(`/api/brain/conversations/${id}/swarm?flavor=${flavor}`)
+      .then((r) => (r.ok ? r.json() : { hasSwarm: false, subagents: [] }))
+      .then((swarmData) => {
+        const swarmTabBtn = document.getElementById("tab-swarm-btn");
+        const swarmBadge = document.getElementById("swarm-counter");
+        const memberCount = swarmData.members?.members
+          ? Object.keys(swarmData.members.members).length
+          : 0;
+        const subagentCount = Array.isArray(swarmData.subagents)
+          ? swarmData.subagents.length
+          : 0;
+        const hasAny = swarmData.hasSwarm || subagentCount > 0;
+        if (swarmTabBtn) {
+          if (hasAny) {
+            swarmTabBtn.classList.remove("hidden");
+            if (swarmBadge) {
+              swarmBadge.innerText = `${Math.max(memberCount, subagentCount)}`;
+            }
+          } else {
+            swarmTabBtn.classList.add("hidden");
+            if (swarmTabBtn.classList.contains("active")) {
+              document.getElementById("tab-transcript-btn")?.click();
+            }
+          }
+        }
+      })
+      .catch(() => {});
+
+    // If currently on artifacts, messages, or swarm tab, render immediately
     const currentTab = document.querySelector(".view-tab-btn.active")?.id;
     if (currentTab === "tab-artifacts-btn") {
       const artContainer = document.getElementById("artifacts-container");
@@ -1069,6 +1113,9 @@ async function selectConversation(id, element) {
     } else if (currentTab === "tab-messages-btn") {
       const msgContainer = document.getElementById("messages-container");
       renderMessagesView(msgContainer, id, state.currentFlavor);
+    } else if (currentTab === "tab-swarm-btn") {
+      const swarmContainer = document.getElementById("swarm-container");
+      renderSwarmView(swarmContainer, id, state.currentFlavor);
     }
   } catch (e) {
     container.innerHTML =

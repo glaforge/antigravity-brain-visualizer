@@ -154,6 +154,9 @@ public class ChatController {
         }
         Path sessionDir = sessionDirOpt.get();
         Path transcriptPath = sessionDir.resolve(".system_generated/logs/transcript.jsonl");
+        if (!Files.exists(transcriptPath)) {
+            transcriptPath = sessionDir.resolve(".system_generated/logs/transcript_full.jsonl");
+        }
 
         if (!Files.exists(transcriptPath)) {
             return "No transcript file found for conversation " + request.conversationId();
@@ -167,7 +170,10 @@ public class ChatController {
             List<String> lines = Files.readAllLines(transcriptPath);
 
             if ("analysis".equalsIgnoreCase(scopeType)) {
-                Path summaryPath = sessionDir.resolve("summary.json");
+                Path summaryPath = sessionDir.resolve(".system_generated/logs/summary.json");
+                if (!Files.exists(summaryPath)) {
+                    summaryPath = sessionDir.resolve("summary.json");
+                }
                 if (Files.exists(summaryPath)) {
                     return Files.readString(summaryPath);
                 }

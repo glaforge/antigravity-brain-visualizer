@@ -246,6 +246,15 @@ export function renderTranscript(steps, container) {
     } else if (step.type === "SEARCH_WEB") {
       badgeClass = "tool";
       icon = "🔍 ";
+    } else if (step.type === "CHECKPOINT") {
+      badgeClass = "checkpoint";
+      icon = "🔖 ";
+    } else if (step.type === "SYSTEM_MESSAGE") {
+      badgeClass = "system";
+      icon = "🔔 ";
+    } else if (step.type === "AGENCY_TOOL_CALL") {
+      badgeClass = "tool";
+      icon = "🔧 ";
     } else if (step.type === "VIEW_FILE") {
       badgeClass = "tool";
       icon = "📄 ";
@@ -283,6 +292,7 @@ export function renderTranscript(steps, container) {
       step.content ||
       step.thinking ||
       step.error ||
+      (step.media && step.media.length > 0) ||
       (step.tool_calls && step.tool_calls.length > 0);
 
     const header = document.createElement("div");
@@ -291,8 +301,31 @@ export function renderTranscript(steps, container) {
     const typeStr = step.type || "UNKNOWN";
     const sourceStr = step.source || "UNKNOWN";
 
+    let stepChipsHtml = "";
+    if (step.model) {
+      stepChipsHtml += `<span class="step-model-chip" title="Model: ${escapeHtml(
+        step.model
+      )}">${escapeHtml(step.model)}</span>`;
+    }
+    if (
+      typeof step.input_tokens === "number" ||
+      typeof step.output_tokens === "number"
+    ) {
+      const inTok = step.input_tokens || 0;
+      const cacheTok = step.cache_read_tokens || 0;
+      const outTok = step.output_tokens || 0;
+      const fmtTok = (n) => (n >= 1000 ? (n / 1000).toFixed(1) + "k" : `${n}`);
+      const tokSummary =
+        cacheTok > 0
+          ? `${fmtTok(inTok)} in · ${fmtTok(cacheTok)} cached · ${fmtTok(
+              outTok
+            )} out`
+          : `${fmtTok(inTok)} in · ${fmtTok(outTok)} out`;
+      stepChipsHtml += `<span class="step-tokens-chip" title="Input: ${inTok.toLocaleString()}, Cache Read: ${cacheTok.toLocaleString()}, Output: ${outTok.toLocaleString()}">${tokSummary}</span>`;
+    }
+
     header.innerHTML = `
-            <div style="display:flex; align-items:center; gap:12px;">
+            <div style="display:flex; align-items:center; gap:12px; flex-wrap:wrap;">
                 ${
                   hasContent
                     ? '<span class="chevron">›</span>'
@@ -300,6 +333,7 @@ export function renderTranscript(steps, container) {
                 }
                 <span class="badge ${badgeClass}">${sourceStr}</span>
                 <span style="font-family:var(--font-mono); font-weight:500; font-size:0.9rem;">${icon}${typeStr}</span>
+                ${stepChipsHtml}
             </div>
             <div class="step-meta ${badgeClass}" style="display:flex; align-items:center; gap:6px;">
               ${
@@ -363,6 +397,8 @@ export function renderTranscript(steps, container) {
         step.type === "USER_INPUT" ||
         step.type === "PLANNER_RESPONSE" ||
         step.type === "MESSAGE" ||
+        step.type === "CHECKPOINT" ||
+        step.type === "SYSTEM_MESSAGE" ||
         step.type === "SEARCH_WEB"
       ) {
         let processedContent = step.content;
@@ -542,6 +578,9 @@ export function renderTranscript(steps, container) {
               "\n\n- $&"
             );
           }
+          if (step.type === "SYSTEM_MESSAGE") {
+            contentText = unwrapPromptXmlTags(contentText);
+          }
           formattedContent =
             prefixHtml +
             `<div class="markdown-body">${renderMarkdown(contentText)}</div>`;
@@ -709,6 +748,44 @@ export function renderTranscript(steps, container) {
                     </div>
                 `;
       });
+    }
+
+    if (Array.isArray(step.media) && step.media.length > 0) {
+      html += `<div class="step-media-gallery">`;
+      step.media.forEach((item) => {
+        const rawUri = item.uri || "";
+        const filePath = rawUri.startsWith("file://")
+          ? decodeURIComponent(rawUri.replace(/^file:\/\//, ""))
+          : rawUri;
+        const mime = item.mime_type || "";
+        const mediaUrl = `/api/brain/media?path=${encodeURIComponent(
+          filePath
+        )}`;
+        const label = filePath.split("/").pop() || mime || "media";
+
+        if (mime.startsWith("image/")) {
+          html += `<a href="${mediaUrl}" target="_blank" class="step-media-card" title="${escapeHtml(
+            label
+          )}"><img src="${mediaUrl}" alt="${escapeHtml(
+            label
+          )}" loading="lazy" class="step-media-thumb" /><span class="step-media-caption">${escapeHtml(
+            label
+          )}</span></a>`;
+        } else if (mime.startsWith("video/")) {
+          html += `<div class="step-media-card"><video controls preload="metadata" class="step-media-video" src="${mediaUrl}"></video><span class="step-media-caption">${escapeHtml(
+            label
+          )}</span></div>`;
+        } else if (mime.startsWith("audio/")) {
+          html += `<div class="step-media-card"><audio controls preload="metadata" src="${mediaUrl}"></audio><span class="step-media-caption">${escapeHtml(
+            label
+          )}</span></div>`;
+        } else if (filePath) {
+          html += `<a href="${mediaUrl}" target="_blank" class="step-media-card">📎 ${escapeHtml(
+            label
+          )}</a>`;
+        }
+      });
+      html += `</div>`;
     }
 
     body.innerHTML = html;

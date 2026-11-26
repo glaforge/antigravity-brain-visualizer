@@ -51,7 +51,7 @@ export async function renderArtifactsView(container, conversationId, flavor) {
       container.innerHTML = `
         <div class="empty-state" style="margin-top: 48px;">
           <div class="empty-icon">📦</div>
-          <p>No artifacts (.md) or Git snapshot checkpoints found for this conversation.</p>
+          <p>No artifacts, media files, or Git snapshot checkpoints found for this conversation.</p>
         </div>
       `;
       return;
@@ -65,25 +65,47 @@ export async function renderArtifactsView(container, conversationId, flavor) {
           <!-- Artifacts Section -->
           <div>
             <div style="font-size:0.75rem; font-weight:700; color:var(--text-secondary); text-transform:uppercase; letter-spacing:0.05em; margin-bottom:8px; display:flex; align-items:center; justify-content:space-between;">
-              <span>Documents (${artifacts.length})</span>
+              <span>Artifacts &amp; Media (${artifacts.length})</span>
             </div>
             <div id="artifacts-list" style="display:flex; flex-direction:column; gap:8px;">
               ${
                 artifacts.length === 0
-                  ? '<div style="font-size:0.8rem; color:var(--text-secondary); padding:8px;">No markdown documents</div>'
+                  ? '<div style="font-size:0.8rem; color:var(--text-secondary); padding:8px;">No artifacts or media files</div>'
                   : ""
               }
               ${artifacts
                 .map((art, idx) => {
+                  const cat = art.category || "document";
                   const isPlan = art.filename.includes("plan");
                   const isWalkthrough = art.filename.includes("walkthrough");
-                  const icon = isPlan ? "📋" : isWalkthrough ? "🚶" : "📄";
+                  const icon =
+                    cat === "image"
+                      ? "🖼️"
+                      : cat === "video"
+                      ? "🎬"
+                      : cat === "audio"
+                      ? "🔊"
+                      : cat === "html"
+                      ? "🌐"
+                      : cat === "data" || cat === "code"
+                      ? "🧾"
+                      : isPlan
+                      ? "📋"
+                      : isWalkthrough
+                      ? "🚶"
+                      : "📄";
                   const sizeKb = (art.size / 1024).toFixed(1);
                   const version =
                     art.metadata?.version ||
                     (art.metadata?.Version ? art.metadata.Version : null);
                   const summary =
                     art.metadata?.Summary || art.metadata?.summary || "";
+                  const sourceTag =
+                    art.source && art.source !== "root"
+                      ? `<span style="font-size:0.65rem; background:rgba(59, 130, 246, 0.14); color:#60a5fa; padding:1px 6px; border-radius:8px; font-weight:600;">${escapeHtml(
+                          art.source
+                        )}</span>`
+                      : "";
 
                   return `
                   <div class="artifact-item ${
@@ -98,11 +120,14 @@ export async function renderArtifactsView(container, conversationId, flavor) {
                         <span>${icon}</span>
                         <span>${escapeHtml(art.filename)}</span>
                       </div>
-                      ${
-                        version
-                          ? `<span style="font-size:0.65rem; background:rgba(139, 92, 246, 0.15); color:var(--accent-purple); padding:2px 6px; border-radius:10px; font-weight:700;">v${version}</span>`
-                          : ""
-                      }
+                      <div style="display:flex; align-items:center; gap:4px; flex-shrink:0;">
+                        ${sourceTag}
+                        ${
+                          version
+                            ? `<span style="font-size:0.65rem; background:rgba(139, 92, 246, 0.15); color:var(--accent-purple); padding:2px 6px; border-radius:10px; font-weight:700;">v${version}</span>`
+                            : ""
+                        }
+                      </div>
                     </div>
                     <div style="font-size:0.75rem; color:var(--text-secondary); margin-top:4px; display:flex; justify-content:space-between;">
                       <span>${sizeKb} KB</span>
@@ -216,7 +241,20 @@ export async function renderArtifactsView(container, conversationId, flavor) {
 
     // Function to load and render an artifact
     async function showArtifact(art) {
-      viewerTitle.innerHTML = `<span>📄 <strong>${escapeHtml(
+      const cat = art.category || "document";
+      const headerIcon =
+        cat === "image"
+          ? "🖼️"
+          : cat === "video"
+          ? "🎬"
+          : cat === "audio"
+          ? "🔊"
+          : cat === "html"
+          ? "🌐"
+          : cat === "data" || cat === "code"
+          ? "🧾"
+          : "📄";
+      viewerTitle.innerHTML = `<span>${headerIcon} <strong>${escapeHtml(
         art.filename
       )}</strong></span> <span style="font-size:0.75rem; color:var(--text-secondary); margin-left:8px;">(${(
         art.size / 1024
@@ -228,14 +266,62 @@ export async function renderArtifactsView(container, conversationId, flavor) {
       if (diffModeBtn) diffModeBtn.style.display = "none";
       if (copyBtn) copyBtn.style.display = "none";
 
+      if (cat === "image" || cat === "video" || cat === "audio") {
+        const mediaUrl = `/api/brain/media?path=${encodeURIComponent(
+          art.path
+        )}`;
+        if (cat === "image") {
+          viewerBody.innerHTML = `
+            <div style="display:flex; flex-direction:column; align-items:center; gap:12px;">
+              <img src="${mediaUrl}" alt="${escapeHtml(
+            art.filename
+          )}" style="max-width:100%; max-height:70vh; border-radius:8px; border:1px solid var(--border-color); background:var(--bg-elevated);" />
+              <a href="${mediaUrl}" target="_blank" class="btn secondary" style="font-size:0.8rem; text-decoration:none;">↗ Open Full Resolution</a>
+            </div>
+          `;
+        } else if (cat === "video") {
+          viewerBody.innerHTML = `
+            <div style="display:flex; flex-direction:column; align-items:center; gap:12px;">
+              <video controls src="${mediaUrl}" style="max-width:100%; max-height:70vh; border-radius:8px; border:1px solid var(--border-color);"></video>
+            </div>
+          `;
+        } else {
+          viewerBody.innerHTML = `
+            <div style="display:flex; flex-direction:column; align-items:center; justify-content:center; padding:32px; gap:12px;">
+              <audio controls src="${mediaUrl}" style="width:100%; max-width:480px;"></audio>
+            </div>
+          `;
+        }
+        return;
+      }
+
       try {
         const res = await fetch(
           `/api/brain/file?path=${encodeURIComponent(art.path)}`
         );
         if (!res.ok) throw new Error("Failed to load file");
-        const mdText = await res.text();
-        currentRawContent = mdText;
+        const rawText = await res.text();
+        currentRawContent = rawText;
         if (copyBtn) copyBtn.style.display = "inline-block";
+
+        if (cat === "data" || cat === "code" || cat === "html") {
+          let displayText = rawText;
+          let langClass = cat === "html" ? "language-html" : "";
+          if (art.filename.toLowerCase().endsWith(".json")) {
+            langClass = "language-json";
+            try {
+              displayText = JSON.stringify(JSON.parse(rawText), null, 2);
+              currentRawContent = displayText;
+            } catch (_) {}
+          }
+          viewerBody.innerHTML = `<pre class="code-block"><code class="${langClass}">${escapeHtml(
+            displayText
+          )}</code></pre>`;
+          viewerBody.querySelectorAll("pre code").forEach((el) => {
+            hljs.highlightElement(el);
+          });
+          return;
+        }
 
         let metaBanner = "";
         if (art.metadata) {
@@ -264,7 +350,7 @@ export async function renderArtifactsView(container, conversationId, flavor) {
 
         viewerBody.innerHTML =
           metaBanner +
-          `<div class="markdown-body">${renderMarkdown(mdText)}</div>`;
+          `<div class="markdown-body">${renderMarkdown(rawText)}</div>`;
         viewerBody.querySelectorAll("pre code").forEach((el) => {
           hljs.highlightElement(el);
         });

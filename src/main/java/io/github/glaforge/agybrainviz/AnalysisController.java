@@ -90,7 +90,7 @@ public class AnalysisController {
     private final AnalyzerService analyzerService;
     private final ExecutorService executor;
 
-    @Value("${gemini.model:gemini-3.8-flash}")
+    @Value("${gemini.model:gemini-4-hydrogen}")
     protected String modelName;
 
     @Inject
@@ -145,6 +145,13 @@ public class AnalysisController {
                 .resolve(".system_generated")
                 .resolve("logs")
                 .resolve("transcript.jsonl");
+            if (!Files.exists(transcriptPath)) {
+                transcriptPath =
+                    convDir
+                        .resolve(".system_generated")
+                        .resolve("logs")
+                        .resolve("transcript_full.jsonl");
+            }
             if (!Files.exists(transcriptPath)) {
                 return "{\"summary\": \"No transcript found.\"}";
             }
@@ -342,7 +349,7 @@ public class AnalysisController {
 
                 progressMap.put(id, new ProgressState(25, "Analyzing conversation with Gemini..."));
 
-                // Smooth progress ticker while waiting for Gemini 3.8 Flash response
+                // Smooth progress ticker while waiting for Gemini 4 Hydrogen response
                 AtomicBoolean analysisDone = new AtomicBoolean(false);
                 Future<?> progressTicker = executor.submit(() -> {
                     int p = 25;
